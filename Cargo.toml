@@ -1,0 +1,20 @@
+[package]
+name = "dithereeens"
+version = "0.1.0"
+authors = ["Moritz Moeller <virtualritz@protonmail.com>"]
+edition = "2021"
+keywords = ["graphics", "dithering", "images"]
+categories = ["graphics", "multimedia::images"]
+license = "MIT OR Apache-2.0 OR Zlib"
+description = "Functions & traits for quantizing values with error-diffusion"
+exclude = [".github/**/*", "crates/**/*", "examples/**/*"]
+readme = "README.md"
+documentation = "https://docs.rs/dithereeens/"
+repository = "https://github.com/virtualritz/dithereeens/"
+
+[dependencies]
+num-traits = "0.2"
+rand = "0.8"
+
+[dev-dependencies]
+frand = "0.10"
