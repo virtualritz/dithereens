@@ -1,3 +1,12 @@
+//! Functions and traits for quantizing values with error-diffusion.
+//!
+//! This is mostly useful when e.g. quantizing from a [`f32`]- or
+//! [`f16`]-per-channel color resolution to something like [`u16`]- or
+//! [`u8`]-per-channel. In these cases quantization without error-diffusion would
+//! lead to banding.
+//!
+//! The crate uses generics to allow interpolation of any type for which certain
+//! traits are defined.
 use num_traits::{cast::FromPrimitive, clamp, float::Float, identities::Zero};
 use rand::{distributions::uniform::SampleUniform, Rng};
 
@@ -20,7 +29,7 @@ where
 /// ## Examples
 ///
 /// ```
-/// # use dithereeens::Dither;
+/// # use dithereens::Dither;
 /// let mut rng = rand::thread_rng();
 ///
 /// let value = 0.5f32;
@@ -51,13 +60,14 @@ where
 /// ## Examples
 ///
 /// ```
-/// # use dithereeens::SimpleDither;
+/// # use dithereens::SimpleDither;
 /// let mut rng = rand::thread_rng();
 ///
 /// let value = 0.5f32;
 ///
 /// // Dither `value` to `127u8` or `128u8``, with a probability of 50%.
-/// let dithered_value: u8 = (value.simple_dither(255.0, &mut rng) as u8).clamp(0, 255);
+/// let dithered_value: u8 =
+///     (value.simple_dither(255.0, &mut rng) as u8).clamp(0, 255);
 ///
 /// assert!(dithered_value == 127 || 128 == dithered_value);
 /// ```
@@ -88,7 +98,7 @@ where
 /// ## Examples
 /// ```
 /// # use num_traits::clamp;
-/// # use dithereeens::dither;
+/// # use dithereens::dither;
 /// let mut rng = rand::thread_rng();
 ///
 /// let value: f32 = 0.5;
@@ -131,7 +141,7 @@ where
 /// ## Examples
 /// ```
 /// # use num_traits::clamp;
-/// # use dithereeens::dither;
+/// # use dithereens::dither;
 /// let mut rng = rand::thread_rng();
 ///
 /// let value: f32 = 0.5;

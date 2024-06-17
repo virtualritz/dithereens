@@ -1,11 +1,11 @@
 [package]
-name = "dithereeens"
+name = "dithereens"
 version = "0.1.0"
 authors = ["Moritz Moeller <virtualritz@protonmail.com>"]
 edition = "2021"
 keywords = ["graphics", "dithering", "images"]
 categories = ["graphics", "multimedia::images"]
-license = "MIT OR Apache-2.0 OR Zlib"
+license = "Apache-2.0 OR BSD-3-Clause OR MIT OR Zlib"
 description = "Functions & traits for quantizing values with error-diffusion"
 exclude = [".github/**/*", "crates/**/*", "examples/**/*"]
 readme = "README.md"
