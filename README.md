@@ -19,10 +19,10 @@ let mut rng = rand::rng();
 
 let value: f32 = 0.5;
 
-// Dither `value` to `127u8` or `128u8``, with a probability of 50%.
-//
-// Note that we still clamp the value since it could be outside the target
-// type's range.
+// Dither `value` to `127u8` or `128u8`, with a probability of
+// 50%.
+// Note that we still clamp the value since it could be outside
+// the target type's range.
 let dithered_value: u8 =
     clamp(simple_dither(value, 255.0, &mut rng) as u8, 0, 255);
 

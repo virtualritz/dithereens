@@ -17,10 +17,10 @@
 //!
 //! let value: f32 = 0.5;
 //!
-//! // Dither `value` to `127u8` or `128u8``, with a probability of 50%.
-//! //
-//! // Note that we still clamp the value since it could be outside the target
-//! // type's range.
+//! // Dither `value` to `127u8` or `128u8`, with a probability of
+//! // 50%.
+//! // Note that we still clamp the value since it could be outside
+//! // the target type's range.
 //! let dithered_value: u8 =
 //!     clamp(simple_dither(value, 255.0, &mut rng) as u8, 0, 255);
 //!
@@ -44,21 +44,6 @@ where
 }
 
 /// See the [`dither()`] function for more details.
-///
-/// ## Examples
-///
-/// ```
-/// # use dithereens::Dither;
-/// let mut rng = rand::thread_rng();
-///
-/// let value = 0.5f32;
-///
-/// // Dither `value` to `127u8` or `128u8``, with a probability of 50%.
-/// let dithered_value: u8 =
-///     (value.dither(0.0, 255.0, 0.5, &mut rng) as u8).clamp(0, 255);
-///
-/// assert!(dithered_value == 127 || 128 == dithered_value);
-/// ```
 impl<T> Dither<T> for T
 where
     T: Float + SampleUniform,
@@ -75,21 +60,6 @@ where
 }
 
 /// See the [`simple_dither()`] function for more details.
-///
-/// ## Examples
-///
-/// ```
-/// # use dithereens::SimpleDither;
-/// let mut rng = rand::thread_rng();
-///
-/// let value = 0.5f32;
-///
-/// // Dither `value` to `127u8` or `128u8``, with a probability of 50%.
-/// let dithered_value: u8 =
-///     (value.simple_dither(255.0, &mut rng) as u8).clamp(0, 255);
-///
-/// assert!(dithered_value == 127 || 128 == dithered_value);
-/// ```
 impl<T> SimpleDither<T> for T
 where
     T: Float + FromPrimitive + SampleUniform + Zero,
@@ -103,6 +73,8 @@ where
 
 /// Dither a value using random noise. With control over scaling, mapped
 /// interval and dither strength.
+///
+/// The resulting value is *not* clamped.
 ///
 /// *⌊min + value × (one - min) + dither⌉*
 ///
