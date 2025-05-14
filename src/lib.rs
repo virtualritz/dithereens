@@ -1,14 +1,33 @@
 //! Functions and traits for quantizing values with error-diffusion.
 //!
-//! This is mostly useful when e.g. quantizing from a [`f32`]- or
-//! [`f16`]-per-channel color resolution to something like [`u16`]- or
-//! [`u8`]-per-channel. In these cases quantization without error-diffusion would
-//! lead to banding.
+//! This is mostly useful when e.g. quantizing from a `f32`- or
+//! `f16`-per-channel color resolution to something like `u16`- or
+//! `u8`-per-channel. In these cases quantization without error-diffusion
+//! would lead to banding.
 //!
 //! The crate uses generics to allow interpolation of any type for which certain
 //! traits are defined.
+//!
+//! ## Examples
+//!
+//! ```rust
+//! # use num_traits::clamp;
+//! # use dithereens::simple_dither;
+//! let mut rng = rand::rng();
+//!
+//! let value: f32 = 0.5;
+//!
+//! // Dither `value` to `127u8` or `128u8``, with a probability of 50%.
+//! //
+//! // Note that we still clamp the value since it could be outside the target
+//! // type's range.
+//! let dithered_value: u8 =
+//!     clamp(simple_dither(value, 255.0, &mut rng) as u8, 0, 255);
+//!
+//! assert!(dithered_value == 127 || 128 == dithered_value);
+//! ```
 use num_traits::{cast::FromPrimitive, clamp, float::Float, identities::Zero};
-use rand::{distributions::uniform::SampleUniform, Rng};
+use rand::{Rng, distr::uniform::SampleUniform};
 
 pub trait Dither<T>
 where
@@ -104,6 +123,9 @@ where
 /// let value: f32 = 0.5;
 ///
 /// // Dither `value` to `127u8` or `128u8``, with a probability of 50%.
+/// //
+/// // Note that we still clamp the value since it could be outside the target
+/// // type's range.
 /// let dithered_value: u8 =
 ///     clamp(dither(value, 0.0, 255.0, 0.5, &mut rng) as u8, 0, 255);
 ///
@@ -121,34 +143,33 @@ where
     T: Float + SampleUniform,
     R: Rng,
 {
-    let dither = rng.gen_range(-dither_amplitude..dither_amplitude);
+    let dither = rng.random_range(-dither_amplitude..dither_amplitude);
 
     (min + value * (one - min) + dither).round()
 }
 
 /// Dither a value using random noise. With control over scaling.
 ///
-/// *⌊min + value × (one - min) + dither⌉*
+/// See the [`dither()`] function for more details about the underlying math.
 ///
 /// * `value` -- The value to dither
 /// * `one` -- The value of 1.0 after dithering.
-/// * `min..max` -- The range of `value` that is mapped to `0..1` before scaled
-///   by `one` and dithered.
-/// * `dither_amplitude` -- The amount/strength of dithering. A typical value is
-///   `0.5`.
 /// * `rng` -- A random number generator.
 ///
 /// ## Examples
 /// ```
 /// # use num_traits::clamp;
-/// # use dithereens::dither;
-/// let mut rng = rand::thread_rng();
+/// # use dithereens::simple_dither;
+/// let mut rng = rand::rng();
 ///
 /// let value: f32 = 0.5;
 ///
 /// // Dither `value` to `127u8` or `128u8``, with a probability of 50%.
+/// //
+/// // Note that we still clamp the value since it could be outside the target
+/// // type's range.
 /// let dithered_value: u8 =
-///     clamp(dither(value, 0.0, 255.0, 0.5, &mut rng) as u8, 0, 255);
+///     clamp(simple_dither(value, 255.0, &mut rng) as u8, 0, 255);
 ///
 /// assert!(dithered_value == 127 || 128 == dithered_value);
 /// ```
@@ -170,9 +191,9 @@ mod tests {
 
     #[test]
     fn dither() {
-        use frand::Rand;
+        use rand::{SeedableRng, rngs::SmallRng};
 
-        let mut rng = Rand::with_seed(42);
+        let mut rng = SmallRng::seed_from_u64(42);
 
         for _ in 0..100 {
             let value =
