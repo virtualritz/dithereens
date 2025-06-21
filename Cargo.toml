@@ -1,6 +1,6 @@
 [package]
 name = "dithereens"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Moritz Moeller <virtualritz@protonmail.com>"]
 edition = "2024"
 keywords = ["graphics", "dithering", "images"]
@@ -14,9 +14,11 @@ repository = "https://github.com/virtualritz/dithereens/"
 
 [features]
 default = ["rayon", "std"]
-## Enables `std`-only features. This is mostly just using
+## Enables `std`-only features.
 std = []
+## Pulls in `libm` for faster `round()` implementation.
 libm = ["dep:libm"]
+## Enables parallel processing via `rayon`.
 rayon = ["dep:rayon", "dep:smallvec"]
 
 [dependencies]

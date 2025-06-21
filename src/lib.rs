@@ -61,15 +61,9 @@
 //!
 //! # Parallel Processing
 //!
-//! Via `rayon` -- enabled by default.
-//!
-//! ```toml
-//! [dependencies]
-//! dithereens = { version = "0.1", features = ["rayon"] }
-//! ```
-//!
-//! With `rayon` enabled, batch and slice functions use parallel processing..
-//! RNG must implement `Rng + Send + Clone`..
+//! Via `rayon` -- enabled by default. With `rayon` enabled, `_batch` and
+//! `_slice` postfixed functions use parallel processing. The passed `RNG` must
+//! implement `Rng + Send + Clone`.
 //!
 //! # `no_std` Support
 //!
