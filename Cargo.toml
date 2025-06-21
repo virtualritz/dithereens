@@ -1,6 +1,6 @@
 [package]
 name = "dithereens"
-version = "0.1.2"
+version = "0.2.0"
 authors = ["Moritz Moeller <virtualritz@protonmail.com>"]
 edition = "2024"
 keywords = ["graphics", "dithering", "images"]
@@ -12,6 +12,37 @@ readme = "README.md"
 documentation = "https://docs.rs/dithereens/"
 repository = "https://github.com/virtualritz/dithereens/"
 
+[features]
+default = ["rayon", "std"]
+## Enables `std`-only features. This is mostly just using
+std = []
+libm = ["dep:libm"]
+rayon = ["dep:rayon", "dep:smallvec"]
+
 [dependencies]
-num-traits = "0.2"
-rand = "0.9"
+libm = { version = "0.2", optional = true }
+common_traits = { version = "0.11", default-features = false }
+rand = { version = "0.9", default-features = false, features = ["small_rng", "thread_rng"] }
+rayon = { version = "1", optional = true }
+smallvec = { version = "1", optional = true }
+
+[dev-dependencies]
+criterion = { version = "0.6", features = ["html_reports"] }
+num_cpus = "1"
+image = "0.25"
+
+[[bench]]
+name = "dithering"
+harness = false
+
+[[bench]]
+name = "comparison"
+harness = false
+
+[[bench]]
+name = "simple"
+harness = false
+
+[[bench]]
+name = "rayon_comparison"
+harness = false

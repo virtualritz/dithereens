@@ -1,32 +1,91 @@
 # `dithereens`
 
+![Before/after dithering](before_after_dither.png)
+
 <!-- cargo-rdme start -->
 
 Functions and traits for quantizing values with error-diffusion.
 
-This is mostly useful when e.g. quantizing from a `f32`- or
-`f16`-per-channel color resolution to something like `u16`- or
-`u8`-per-channel. In these cases quantization without error-diffusion
-would lead to banding.
+Quantizing from `f32`/`f16` to `u16`/`u8` without dithering leads to.
+banding. This crate provides dithering to reduce quantization artifacts.
 
-The crate uses generics to allow interpolation of any type for which certain
-traits are defined.
+## Overview
 
-### Examples
+- **Single values**: `dither()`, `simple_dither()`.
+- **Iterator processing**: `dither_iter()`, `simple_dither_iter()`.
+- **In-place operations**: `dither_slice()`, `simple_dither_slice()`.
+- **Iterator adapters**: `DitherIteratorExt` for method chaining.
+- **Trait-based API**: `Dither`, `SimpleDither` traits.
+- **no_std support**: Works in embedded environments.
+- **Generic types**: `f32`, `f64`, or any `DitherFloat` implementation.
+
+## Quick Start
 
 ```rust
-let mut rng = rand::rng();
+let mut rng = rand::thread_rng();
 
 let value: f32 = 0.5;
 
-// Dither `value` to `127u8` or `128u8`, with a probability of
-// 50%.
-// Note that we still clamp the value since it could be outside
+// Dither `value` to `127u8` or `128u8`, with a probability of 50%.
+// Note that we still clamp the value since it could be outside.
 // the target type's range.
 let dithered_value: u8 =
-    clamp(simple_dither(value, 255.0, &mut rng) as u8, 0, 255);
+    simple_dither(value, 255.0, &mut rng).clamp(0.0, 255.0) as u8;
 
 assert!(dithered_value == 127 || 128 == dithered_value);
+```
+
+## Iterator Adapters
+
+Use `DitherIteratorExt` for ergonomic method chaining:
+
+```rust
+let mut rng = SmallRng::seed_from_u64(42);
+let pixel_values = vec!0.2f32, 0.5, 0.8, 0.1, 0.9;
+
+let result: Vec<f32> = pixel_values
+    .iter()
+    .copied()
+    // +3/4 EV exposure.
+    .map(|pixel| pixel * 2.0f32.powf(3.0 / 4.0))
+    // Dither.
+    .simple_dither(255.0, &mut rng);
+```
+
+## Performance Guide
+
+Based on benchmarks with 10,000 values:
+
+- **Single values**: `dither()`, `simple_dither()`.
+- **In-place slice operations**: `dither_slice()`,
+  `simple_dither_slice()` (~5.6x faster than iterator methods)
+- **Iterator chains**: `dither_iter()`, `simple_dither_iter()`, or
+  `DitherIteratorExt` adapters (allocation overhead)
+
+## Parallel Processing
+
+Via `rayon` -- enabled by default.
+
+```toml
+dependencies
+dithereens = { version = "0.1", features = "rayon" }
+```
+
+With `rayon` enabled, batch and slice functions use parallel processing..
+RNG must implement `Rng + Send + Clone`..
+
+## `no_std` Support
+
+This crate supports `no_std` environments. The `libm` crate can be used to
+pull in a possibly faster, native `round()` implementation. Otherwise a
+manual implementation is used in `no_std` environments.
+
+```toml
+dependencies
+# `no_std`
+dithereens = { version = "0.1", default-features = false }
+# Optional: uses `libm`'s `round()` function instead of a manual implementation for `no_std`.
+dithereens = { version = "0.1", default-features = false, features = "libm" }
 ```
 
 <!-- cargo-rdme end -->
