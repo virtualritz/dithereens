@@ -1,6 +1,7 @@
 # `dithereens`
 
 ![Before/after dithering](before_after_dither.png)
+_Before (top) and after (bottom) dithering a gradient (uses `simple_dither()`, i.e. defaults)._
 
 <!-- cargo-rdme start -->
 
@@ -67,8 +68,8 @@ Based on benchmarks with 10,000 values:
 Via `rayon` -- enabled by default.
 
 ```toml
-dependencies
-dithereens = { version = "0.1", features = "rayon" }
+[dependencies]
+dithereens = { version = "0.1", features = ["rayon"] }
 ```
 
 With `rayon` enabled, batch and slice functions use parallel processing..
@@ -81,11 +82,11 @@ pull in a possibly faster, native `round()` implementation. Otherwise a
 manual implementation is used in `no_std` environments.
 
 ```toml
-dependencies
+[dependencies]
 # `no_std`
 dithereens = { version = "0.1", default-features = false }
 # Optional: uses `libm`'s `round()` function instead of a manual implementation for `no_std`.
-dithereens = { version = "0.1", default-features = false, features = "libm" }
+dithereens = { version = "0.1", default-features = false, features = ["libm"] }
 ```
 
 <!-- cargo-rdme end -->
