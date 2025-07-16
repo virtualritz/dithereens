@@ -23,7 +23,7 @@ banding. This crate provides dithering to reduce quantization artifacts.
 ## Quick Start
 
 ```rust
-let mut rng = rand::thread_rng();
+let mut rng = wyrand::WyRand::new(42);
 
 let value: f32 = 0.5;
 

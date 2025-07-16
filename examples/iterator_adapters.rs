@@ -1,8 +1,7 @@
 use dithereens::*;
-use rand::{SeedableRng, rngs::SmallRng};
 
 fn main() {
-    let mut rng = SmallRng::seed_from_u64(42);
+    let mut rng = wyrand::WyRand::new(42);
 
     println!("Iterator Adapter Examples\n");
 

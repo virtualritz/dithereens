@@ -1,7 +1,8 @@
 //! Functions and traits for quantizing values with error-diffusion.
 //!
-//! Quantizing from `f32`/`f16` to `u16`/`u8` without dithering leads to.
-//! banding. This crate provides dithering to reduce quantization artifacts.
+//! Quantizing from `f64`/`f32`/`f16` to `u32/`u16`/`u8` without dithering
+//! creates banding. This crate provides dithering to reduce quantization
+//! artifacts.
 //!
 //! # Overview
 //!
@@ -11,13 +12,14 @@
 //! - **Iterator adapters**: [`DitherIteratorExt`] for method chaining.
 //! - **Trait-based API**: [`Dither`], [`SimpleDither`] traits.
 //! - **no_std support**: Works in embedded environments.
-//! - **Generic types**: `f32`, `f64`, or any [`DitherFloat`] implementation.
+//! - **Generic types**: `f32`, `f64`, `f16` (with `nightly_f16` feature), or
+//!   any [`DitherFloat`] implementation.
 //!
 //! # Quick Start
 //!
 //! ```rust
 //! # use dithereens::simple_dither;
-//! let mut rng = rand::thread_rng();
+//! let mut rng = wyrand::WyRand::new(42);
 //!
 //! let value: f32 = 0.5;
 //!
@@ -36,8 +38,7 @@
 //!
 //! ```rust
 //! # use dithereens::DitherIteratorExt;
-//! # use rand::{SeedableRng, rngs::SmallRng};
-//! let mut rng = SmallRng::seed_from_u64(42);
+//! let mut rng = wyrand::WyRand::new(42);
 //! let pixel_values = vec![0.2f32, 0.5, 0.8, 0.1, 0.9];
 //!
 //! let result: Vec<f32> = pixel_values
@@ -51,7 +52,7 @@
 //!
 //! # Performance Guide
 //!
-//! Based on benchmarks with 10,000 values:
+//! Benchmarks with 10,000 values:
 //!
 //! - **Single values**: [`dither()`], [`simple_dither()`].
 //! - **In-place slice operations**: [`dither_slice()`],
@@ -61,25 +62,46 @@
 //!
 //! # Parallel Processing
 //!
-//! Via `rayon` -- enabled by default. With `rayon` enabled, `_batch` and
-//! `_slice` postfixed functions use parallel processing. The passed `RNG` must
-//! implement `Rng + Send + Clone`.
+//! Via `rayon` (enabled by default). With `rayon` enabled, `_iter` and
+//! `_slice` functions use parallel processing. The `RNG` must implement
+//! `Rng + Send + Clone`. [`DitherParallelIteratorExt`] provides fluent API for
+//! parallel iterator chains.
 //!
 //! # `no_std` Support
 //!
-//! This crate supports `no_std` environments. The `libm` crate can be used to
-//! pull in a possibly faster, native `round()` implementation. Otherwise a
-//! manual implementation is used in `no_std` environments.
+//! This crate supports `no_std` environments. The `libm` crate provides a
+//! native `round()` implementation. Without `libm`, a manual implementation is
+//! used.
 //!
 //! ```toml
 //! [dependencies]
 //! # `no_std`
 //! dithereens = { version = "0.1", default-features = false }
-//! # Optional: uses `libm`'s `round()` function instead of a manual implementation for `no_std`.
-//! dithereens = { version = "0.1", default-features = false, features = ["libm"] }
+//! ```
+//!
+//! ```toml
+//! [dependencies]
+//! # Optional: uses `libm`'s `round()` function instead of a manual
+//! # implementation for `no_std`.
+//! dithereens = {
+//!    version = "0.1",
+//!    default-features = false,
+//!    features = ["libm"]
+//! }
+//! ```
+//!
+//! # Native `f16` Support
+//!
+//! Enable the `nightly_f16` feature to use native `f16` types (requires nightly
+//! Rust):
+//!
+//! ```toml
+//! [dependencies]
+//! dithereens = { version = "0.1", features = ["nightly_f16"] }
 //! ```
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(feature = "nightly_f16", feature(f16))]
 
 /// Maximum number of threads to allocate on the stack for RNG distribution.
 /// Set to 64 to handle most modern CPU core counts without heap allocation.
@@ -97,7 +119,7 @@ use core::{
     cmp::PartialOrd,
     ops::{Add, Mul, Neg, Sub},
 };
-use rand::{Rng, distr::uniform::SampleUniform};
+use rand_core::RngCore;
 #[cfg(feature = "rayon")]
 use smallvec::SmallVec;
 
@@ -189,7 +211,7 @@ pub trait DitherFloat:
     + Mul<Output = Self>
     + Neg<Output = Self>
     + Number
-    + SampleUniform
+    + CastableFrom<f64>
 {
     fn round(self) -> Self;
 }
@@ -238,6 +260,33 @@ impl DitherFloat for f64 {
     }
 }
 
+#[cfg(feature = "nightly_f16")]
+impl DitherFloat for f16 {
+    #[cfg(feature = "std")]
+    fn round(self) -> Self {
+        // Convert to f32 for rounding, then back to f16
+        (self as f32).round() as f16
+    }
+
+    #[cfg(all(not(feature = "std"), feature = "libm"))]
+    fn round(self) -> Self {
+        // Convert to f32 for rounding, then back to f16
+        libm::roundf(self as f32) as f16
+    }
+
+    #[cfg(all(not(feature = "std"), not(feature = "libm")))]
+    fn round(self) -> Self {
+        // Basic rounding without libm - less precise but works
+        let f32_val = self as f32;
+        let rounded = if f32_val >= 0.0 {
+            (f32_val + 0.5) as i32 as f32
+        } else {
+            (f32_val - 0.5) as i32 as f32
+        };
+        rounded as f16
+    }
+}
+
 /// Trait for types that can be dithered.
 ///
 /// Method-style API for the [`dither()`] function.
@@ -246,8 +295,7 @@ impl DitherFloat for f64 {
 ///
 /// ```rust
 /// # use dithereens::Dither;
-/// # use rand::thread_rng;
-/// let mut rng = rand::thread_rng();
+/// let mut rng = wyrand::WyRand::new(42);
 /// let value = 0.5_f32;
 /// let dithered = value.dither(0.0, 255.0, 0.5, &mut rng);
 /// ```
@@ -258,7 +306,7 @@ where
     /// Dither this value.
     ///
     /// See [`dither()`] for parameter details and examples.
-    fn dither<R: Rng>(self, min: T, one: T, dither: T, rng: &mut R) -> T;
+    fn dither<R: RngCore>(self, min: T, one: T, dither: T, rng: &mut R) -> T;
 }
 
 /// Trait for types that can be dithered using simplified parameters.
@@ -270,8 +318,7 @@ where
 ///
 /// ```rust
 /// # use dithereens::SimpleDither;
-/// # use rand::thread_rng;
-/// let mut rng = rand::thread_rng();
+/// let mut rng = wyrand::WyRand::new(42);
 /// let value = 0.5_f32;
 /// let dithered = value.simple_dither(255.0, &mut rng);
 /// ```
@@ -282,7 +329,7 @@ where
     /// Dither this value using simplified parameters.
     ///
     /// See [`simple_dither()`] for parameter details and examples.
-    fn simple_dither<R: Rng>(self, one: T, rng: &mut R) -> T;
+    fn simple_dither<R: RngCore>(self, one: T, rng: &mut R) -> T;
 }
 
 /// See the [`dither()`] function for more details.
@@ -291,7 +338,7 @@ where
     T: DitherFloat,
 {
     #[inline]
-    fn dither<R: Rng>(
+    fn dither<R: RngCore>(
         self,
         min: T,
         one: T,
@@ -308,7 +355,7 @@ where
     T: DitherFloat + Number + CastableFrom<f32>,
 {
     #[inline]
-    fn simple_dither<R: Rng>(self: T, one: T, rng: &mut R) -> T {
+    fn simple_dither<R: RngCore>(self: T, one: T, rng: &mut R) -> T {
         simple_dither(self, one, rng)
     }
 }
@@ -346,7 +393,7 @@ where
 /// Basic usage:
 /// ```
 /// # use dithereens::dither;
-/// let mut rng = rand::thread_rng();
+/// let mut rng = wyrand::WyRand::new(42);
 ///
 /// let value: f32 = 0.5;
 ///
@@ -360,8 +407,7 @@ where
 /// Custom range mapping:
 /// ```
 /// # use dithereens::dither;
-/// # use rand::thread_rng;
-/// let mut rng = rand::thread_rng();
+/// let mut rng = wyrand::WyRand::new(42);
 ///
 /// // Map 0.0..1.0 to -100.0..100.0 range
 /// let result = dither(0.75, -100.0, 100.0, 0.5, &mut rng);
@@ -377,12 +423,16 @@ pub fn dither<T, R>(
 ) -> T
 where
     T: DitherFloat,
-    R: Rng,
+    R: RngCore,
 {
     let dither = if dither_amplitude == T::ZERO {
         T::ZERO
     } else {
-        rng.random_range(-dither_amplitude..dither_amplitude)
+        // Generate random value in [-1, 1] and scale by dither_amplitude
+        let random_val = T::cast_from(rng.next_u32() as f64 / u32::MAX as f64)
+            * (T::ONE + T::ONE)
+            - T::ONE;
+        random_val * dither_amplitude
     };
 
     (min + value * (one - min) + dither).round()
@@ -419,7 +469,7 @@ where
 /// Standard usage for 8-bit quantization:
 /// ```
 /// # use dithereens::simple_dither;
-/// let mut rng = rand::thread_rng();
+/// let mut rng = wyrand::WyRand::new(42);
 ///
 /// let value: f32 = 0.5;
 ///
@@ -432,8 +482,7 @@ where
 /// Processing HDR values (outside 0..1 range):
 /// ```
 /// # use dithereens::simple_dither;
-/// # use rand::thread_rng;
-/// let mut rng = rand::thread_rng();
+/// let mut rng = wyrand::WyRand::new(42);
 ///
 /// // Input value outside normal range - automatically clamped
 /// let result = simple_dither(1.5, 255.0, &mut rng);
@@ -442,7 +491,7 @@ where
 pub fn simple_dither<T, R>(value: T, one: T, rng: &mut R) -> T
 where
     T: DitherFloat + Number + CastableFrom<f32>,
-    R: Rng,
+    R: RngCore,
 {
     dither(value, T::ZERO, one, T::cast_from(0.5_f32), rng).clamp(T::ZERO, one)
 }
@@ -456,8 +505,7 @@ where
 ///
 /// ```rust
 /// # use dithereens::dither_slice;
-/// # use rand::thread_rng;
-/// let mut rng = rand::thread_rng();
+/// let mut rng = wyrand::WyRand::new(42);
 /// let mut values = vec![0.2, 0.5, 0.8];
 ///
 /// // Dither to 8-bit range.
@@ -472,7 +520,7 @@ pub fn dither_slice<T, R>(
     rng: &mut R,
 ) where
     T: DitherFloat,
-    R: Rng,
+    R: RngCore,
 {
     for value in values.iter_mut() {
         *value = dither(*value, min, one, dither_amplitude, rng);
@@ -488,7 +536,7 @@ pub fn dither_slice<T, R>(
     rng_manager: &R,
 ) where
     T: DitherFloat + Send + Sync,
-    R: Rng + Send + Clone,
+    R: RngCore + Send + Clone,
 {
     rayon_slice_op!(values, rng_manager, |value: &mut T, rng: &mut R| {
         *value = dither(*value, min, one, dither_amplitude, rng);
@@ -504,8 +552,7 @@ pub fn dither_slice<T, R>(
 ///
 /// ```rust
 /// # use dithereens::simple_dither_slice;
-/// # use rand::thread_rng;
-/// let mut rng = rand::thread_rng();
+/// let mut rng = wyrand::WyRand::new(42);
 /// let mut values = vec![0.2, 0.5, 0.8];
 ///
 /// // Dither to 8-bit range.
@@ -515,7 +562,7 @@ pub fn dither_slice<T, R>(
 pub fn simple_dither_slice<T, R>(values: &mut [T], one: T, rng: &mut R)
 where
     T: DitherFloat + Number + CastableFrom<f32>,
-    R: Rng,
+    R: RngCore,
 {
     for value in values.iter_mut() {
         *value = simple_dither(*value, one, rng);
@@ -526,7 +573,7 @@ where
 pub fn simple_dither_slice<T, R>(values: &mut [T], one: T, rng_manager: &R)
 where
     T: DitherFloat + Number + CastableFrom<f32> + Send + Sync,
-    R: Rng + Send + Clone,
+    R: RngCore + Send + Clone,
 {
     rayon_slice_op!(values, rng_manager, |value: &mut T, rng: &mut R| {
         *value = simple_dither(*value, one, rng);
@@ -543,8 +590,7 @@ where
 ///
 /// ```rust
 /// # use dithereens::dither_iter;
-/// # use rand::thread_rng;
-/// let mut rng = rand::thread_rng();
+/// let mut rng = wyrand::WyRand::new(42);
 ///
 /// // Works with Vec
 /// let values = vec![0.2, 0.5, 0.8];
@@ -572,7 +618,7 @@ pub fn dither_iter<T, R, I>(
 ) -> Vec<T>
 where
     T: DitherFloat,
-    R: Rng,
+    R: RngCore,
     I: IntoIterator<Item = T>,
 {
     values
@@ -591,7 +637,7 @@ pub fn dither_iter<T, R, I>(
 ) -> Vec<T>
 where
     T: DitherFloat + Send + Sync,
-    R: Rng + Send + Clone,
+    R: RngCore + Send + Clone,
     I: IntoIterator<Item = T>,
     I::IntoIter: Send,
     <I::IntoIter as Iterator>::Item: Send,
@@ -611,8 +657,7 @@ where
 ///
 /// ```rust
 /// # use dithereens::simple_dither_iter;
-/// # use rand::thread_rng;
-/// let mut rng = rand::thread_rng();
+/// let mut rng = wyrand::WyRand::new(42);
 ///
 /// // Works with Vec
 /// let values = vec![0.2, 0.5, 0.8];
@@ -629,7 +674,7 @@ where
 pub fn simple_dither_iter<T, R, I>(values: I, one: T, rng: &mut R) -> Vec<T>
 where
     T: DitherFloat + Number + CastableFrom<f32>,
-    R: Rng,
+    R: RngCore,
     I: IntoIterator<Item = T>,
 {
     values
@@ -642,7 +687,7 @@ where
 pub fn simple_dither_iter<T, R, I>(values: I, one: T, rng_manager: &R) -> Vec<T>
 where
     T: DitherFloat + Number + CastableFrom<f32> + Send + Sync,
-    R: Rng + Send + Clone,
+    R: RngCore + Send + Clone,
     I: IntoIterator<Item = T>,
     I::IntoIter: Send,
     <I::IntoIter as Iterator>::Item: Send,
@@ -662,8 +707,7 @@ where
 ///
 /// ```rust
 /// # use dithereens::DitherIteratorExt;
-/// # use rand::{SeedableRng, rngs::SmallRng};
-/// let mut rng = SmallRng::seed_from_u64(42);
+/// let mut rng = wyrand::WyRand::new(42);
 /// let values = vec![0.2f32, 0.5, 0.8];
 ///
 /// let result: Vec<f32> = values
@@ -684,8 +728,7 @@ where
     ///
     /// ```rust
     /// # use dithereens::DitherIteratorExt;
-    /// # use rand::{SeedableRng, rngs::SmallRng};
-    /// let mut rng = SmallRng::seed_from_u64(42);
+    /// let mut rng = wyrand::WyRand::new(42);
     /// let values = vec![0.2f32, 0.5, 0.8];
     ///
     /// let result: Vec<f32> =
@@ -700,7 +743,7 @@ where
         rng: &mut R,
     ) -> Vec<T>
     where
-        R: Rng,
+        R: RngCore,
     {
         self.into_iter()
             .map(|value| dither(value, min, one, dither_amplitude, rng))
@@ -713,7 +756,7 @@ where
     fn dither<R>(self, min: T, one: T, dither_amplitude: T, rng: &R) -> Vec<T>
     where
         T: Send + Sync,
-        R: Rng + Send + Clone,
+        R: RngCore + Send + Clone,
         Self: Send,
         Self::Item: Send,
     {
@@ -729,8 +772,7 @@ where
     ///
     /// ```rust
     /// # use dithereens::DitherIteratorExt;
-    /// # use rand::{SeedableRng, rngs::SmallRng};
-    /// let mut rng = SmallRng::seed_from_u64(42);
+    /// let mut rng = wyrand::WyRand::new(42);
     /// let values = vec![0.2f32, 0.5, 0.8];
     ///
     /// let result: Vec<f32> =
@@ -740,7 +782,7 @@ where
     fn simple_dither<R>(self, one: T, rng: &mut R) -> Vec<T>
     where
         T: Number + CastableFrom<f32>,
-        R: Rng,
+        R: RngCore,
     {
         self.into_iter()
             .map(|value| simple_dither(value, one, rng))
@@ -752,7 +794,7 @@ where
     fn simple_dither<R>(self, one: T, rng: &R) -> Vec<T>
     where
         T: Number + CastableFrom<f32> + Send + Sync,
-        R: Rng + Send + Clone,
+        R: RngCore + Send + Clone,
         Self: Send,
         Self::Item: Send,
     {
@@ -765,6 +807,153 @@ where
 impl<I, T> DitherIteratorExt<T> for I
 where
     I: Iterator<Item = T>,
+    T: DitherFloat,
+{
+}
+
+#[cfg(feature = "rayon")]
+/// Parallel iterator adapter trait for dithering operations.
+///
+/// This trait provides methods to apply dithering directly to parallel
+/// iterators, allowing for chaining operations like:
+/// `values.par_iter().map(|x| x * 2.0).simple_dither(255.0, &mut rng)`
+///
+/// # Examples
+///
+/// ```rust
+/// # use dithereens::DitherParallelIteratorExt;
+/// # use rayon::prelude::*;
+/// let rng = wyrand::WyRand::new(42);
+/// let values = vec![0.2f32, 0.5, 0.8];
+///
+/// let result: Vec<f32> = values
+///     .par_iter()
+///     .copied()
+///     .map(|x| x * 0.5)
+///     .simple_dither(255.0, &rng);
+/// ```
+pub trait DitherParallelIteratorExt<T>:
+    rayon::iter::ParallelIterator<Item = T> + Sized
+where
+    T: DitherFloat,
+{
+    /// Apply dithering to all values in the parallel iterator with full
+    /// control.
+    ///
+    /// This is equivalent to calling [`dither_iter()`] but with a fluent API
+    /// for parallel iterators.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use dithereens::DitherParallelIteratorExt;
+    /// # use rayon::prelude::*;
+    /// let rng = wyrand::WyRand::new(42);
+    /// let values = vec![0.2f32, 0.5, 0.8];
+    ///
+    /// let result: Vec<f32> =
+    ///     values.par_iter().copied().dither(0.0, 255.0, 0.5, &rng);
+    /// ```
+    fn dither<R>(self, min: T, one: T, dither_amplitude: T, rng: &R) -> Vec<T>
+    where
+        T: Send + Sync,
+        R: RngCore + Send + Sync + Clone,
+    {
+        use rayon::prelude::*;
+
+        let values_vec = self.collect::<Vec<_>>();
+
+        // Create one RNG per thread wrapped in UnsafeCell
+        let num_threads = rayon::current_num_threads();
+        let rngs: SmallVec<[UnsafeCellWrapper<_>; MAX_THREADS]> = (0
+            ..num_threads)
+            .map(|_| UnsafeCellWrapper::new(rng.clone()))
+            .collect();
+
+        values_vec
+            .into_par_iter()
+            .enumerate()
+            .map(|(idx, value)| {
+                let thread_id = idx % num_threads;
+                let dither_val = if dither_amplitude == T::ZERO {
+                    T::ZERO
+                } else {
+                    // SAFETY: Each thread accesses a different RNG based on
+                    // thread_id
+                    let rng = unsafe { rngs[thread_id].get_mut() };
+                    let random_val =
+                        T::cast_from(rng.next_u32() as f64 / u32::MAX as f64)
+                            * (T::ONE + T::ONE)
+                            - T::ONE;
+                    random_val * dither_amplitude
+                };
+                (min + value * (one - min) + dither_val).round()
+            })
+            .collect()
+    }
+
+    /// Apply simple dithering to all values in the parallel iterator.
+    ///
+    /// This is equivalent to calling [`simple_dither_iter()`] but with a fluent
+    /// API for parallel iterators.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use dithereens::DitherParallelIteratorExt;
+    /// # use rayon::prelude::*;
+    /// let rng = wyrand::WyRand::new(42);
+    /// let values = vec![0.2f32, 0.5, 0.8];
+    ///
+    /// let result: Vec<f32> =
+    ///     values.par_iter().copied().simple_dither(255.0, &rng);
+    /// ```
+    fn simple_dither<R>(self, one: T, rng: &R) -> Vec<T>
+    where
+        T: Number + CastableFrom<f32> + Send + Sync,
+        R: RngCore + Send + Sync + Clone,
+    {
+        use rayon::prelude::*;
+
+        let values_vec = self.collect::<Vec<_>>();
+
+        // Create one RNG per thread wrapped in UnsafeCell
+        let num_threads = rayon::current_num_threads();
+        let rngs: SmallVec<[UnsafeCellWrapper<_>; MAX_THREADS]> = (0
+            ..num_threads)
+            .map(|_| UnsafeCellWrapper::new(rng.clone()))
+            .collect();
+
+        values_vec
+            .into_par_iter()
+            .enumerate()
+            .map(|(idx, value)| {
+                let thread_id = idx % num_threads;
+                let dither_amplitude = T::cast_from(0.5_f32);
+                let dither_val = {
+                    // SAFETY: Each thread accesses a different RNG based on
+                    // thread_id
+                    let rng = unsafe { rngs[thread_id].get_mut() };
+                    let random_val =
+                        T::cast_from(rng.next_u32() as f64 / u32::MAX as f64)
+                            * (T::ONE + T::ONE)
+                            - T::ONE;
+                    random_val * dither_amplitude
+                };
+                (T::ZERO + value * (one - T::ZERO) + dither_val)
+                    .round()
+                    .clamp(T::ZERO, one)
+            })
+            .collect()
+    }
+}
+
+#[cfg(feature = "rayon")]
+/// Automatic implementation of DitherParallelIteratorExt for all parallel
+/// iterators yielding DitherFloat types.
+impl<I, T> DitherParallelIteratorExt<T> for I
+where
+    I: rayon::iter::ParallelIterator<Item = T>,
     T: DitherFloat,
 {
 }

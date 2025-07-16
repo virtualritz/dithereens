@@ -1,6 +1,6 @@
 [package]
 name = "dithereens"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["Moritz Moeller <virtualritz@protonmail.com>"]
 edition = "2024"
 keywords = ["graphics", "dithering", "images"]
@@ -20,18 +20,21 @@ std = []
 libm = ["dep:libm"]
 ## Enables parallel processing via `rayon`.
 rayon = ["dep:rayon", "dep:smallvec"]
+## Enables support for native `f16` type (requires `nightly`).
+nightly_f16 = ["common_traits/nightly_f16"]
 
 [dependencies]
+common_traits = { git = "https://github.com/virtualritz/common_traits.git", default-features = false }
 libm = { version = "0.2", optional = true }
-common_traits = { version = "0.11", default-features = false }
-rand = { version = "0.9", default-features = false, features = ["small_rng", "thread_rng"] }
+rand_core = { version = "0.9", default-features = false }
 rayon = { version = "1", optional = true }
 smallvec = { version = "1", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.6", features = ["html_reports"] }
-num_cpus = "1"
 image = "0.25"
+num_cpus = "1"
+wyrand = { version = "0.3", features = ["rand_core"], default-features = false }
 
 [[bench]]
 name = "dithering"

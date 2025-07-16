@@ -2,7 +2,6 @@
 
 use dithereens::simple_dither_slice;
 use image::{ImageBuffer, Rgba};
-use rand::{SeedableRng, rngs::SmallRng};
 
 const WIDTH: u32 = 1024;
 const HEIGHT: u32 = 64;
@@ -50,7 +49,7 @@ fn process_without_dither(image_data: &[f32]) -> Vec<u8> {
 
 /// Process image with dithering using `dithereens`.
 fn process_with_dither(image_data: &mut [f32]) -> Vec<u8> {
-    let mut rng = SmallRng::seed_from_u64(42);
+    let mut rng = wyrand::WyRand::new(42);
 
     // Apply dithering while quantizing to 0..=255 range.
     simple_dither_slice(image_data, 255.0, &mut rng);

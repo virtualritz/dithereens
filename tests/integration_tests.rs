@@ -1,9 +1,8 @@
 use dithereens::*;
-use rand::{SeedableRng, rngs::SmallRng};
 
 #[test]
 fn test_dither_basic() {
-    let mut rng = SmallRng::seed_from_u64(42);
+    let mut rng = wyrand::WyRand::new(42);
 
     for _ in 0..100 {
         let value =
@@ -14,7 +13,7 @@ fn test_dither_basic() {
 
 #[test]
 fn test_simple_dither_basic() {
-    let mut rng = SmallRng::seed_from_u64(42);
+    let mut rng = wyrand::WyRand::new(42);
 
     for _ in 0..100 {
         let value = 0.5_f32.simple_dither(255.0, &mut rng) as u8;
@@ -24,7 +23,7 @@ fn test_simple_dither_basic() {
 
 #[test]
 fn test_dither_edge_cases() {
-    let mut rng = SmallRng::seed_from_u64(42);
+    let mut rng = wyrand::WyRand::new(42);
 
     // Test with 0.0
     let result = dither(0.0_f32, 0.0, 255.0, 0.5, &mut rng);
@@ -41,7 +40,7 @@ fn test_dither_edge_cases() {
 
 #[test]
 fn test_simple_dither_edge_cases() {
-    let mut rng = SmallRng::seed_from_u64(42);
+    let mut rng = wyrand::WyRand::new(42);
 
     // Test with 0.0
     let result = simple_dither(0.0_f32, 255.0, &mut rng);
@@ -61,8 +60,8 @@ fn test_simple_dither_edge_cases() {
 
 #[test]
 fn test_dither_deterministic_with_seed() {
-    let mut rng1 = SmallRng::seed_from_u64(42);
-    let mut rng2 = SmallRng::seed_from_u64(42);
+    let mut rng1 = wyrand::WyRand::new(42);
+    let mut rng2 = wyrand::WyRand::new(42);
 
     let result1 = dither(0.5_f32, 0.0, 255.0, 0.5, &mut rng1);
     let result2 = dither(0.5_f32, 0.0, 255.0, 0.5, &mut rng2);
@@ -72,13 +71,13 @@ fn test_dither_deterministic_with_seed() {
 
 #[test]
 fn test_batch_functions() {
-    let mut rng = SmallRng::seed_from_u64(42);
+    let mut rng = wyrand::WyRand::new(42);
     let values = vec![0.0, 0.25, 0.5, 0.75, 1.0];
 
     let dithered = dither_iter(values.clone(), 0.0, 255.0, 0.5, &mut rng);
     assert_eq!(dithered.len(), 5);
 
-    let mut rng = SmallRng::seed_from_u64(42);
+    let mut rng = wyrand::WyRand::new(42);
     let simple_dithered = simple_dither_iter(values, 255.0, &mut rng);
     assert_eq!(simple_dithered.len(), 5);
 
@@ -90,7 +89,7 @@ fn test_batch_functions() {
 
 #[test]
 fn test_inplace_functions() {
-    let mut rng = SmallRng::seed_from_u64(42);
+    let mut rng = wyrand::WyRand::new(42);
     let mut values = vec![0.0, 0.25, 0.5, 0.75, 1.0];
     let original_values = values.clone();
 
@@ -100,7 +99,7 @@ fn test_inplace_functions() {
     assert_ne!(values, original_values);
     assert_eq!(values.len(), 5);
 
-    let mut rng = SmallRng::seed_from_u64(42);
+    let mut rng = wyrand::WyRand::new(42);
     let mut values2 = vec![0.0, 0.25, 0.5, 0.75, 1.0];
     simple_dither_slice(&mut values2, 255.0, &mut rng);
 
@@ -112,7 +111,7 @@ fn test_inplace_functions() {
 
 #[test]
 fn test_different_numeric_types() {
-    let mut rng = SmallRng::seed_from_u64(42);
+    let mut rng = wyrand::WyRand::new(42);
 
     // Test f64
     let result_f64 = dither(0.5_f64, 0.0, 255.0, 0.5, &mut rng);
@@ -125,7 +124,7 @@ fn test_different_numeric_types() {
 
 #[test]
 fn test_zero_dither_amplitude() {
-    let mut rng = SmallRng::seed_from_u64(42);
+    let mut rng = wyrand::WyRand::new(42);
 
     let result = dither(0.5_f32, 0.0, 255.0, 0.0, &mut rng);
     assert_eq!(result, 128.0); // Should be exactly the expected value without dithering
@@ -133,7 +132,7 @@ fn test_zero_dither_amplitude() {
 
 #[test]
 fn test_trait_methods() {
-    let mut rng = SmallRng::seed_from_u64(42);
+    let mut rng = wyrand::WyRand::new(42);
 
     let value = 0.5_f32;
     let result1 = value.dither(0.0, 255.0, 0.5, &mut rng);
@@ -157,33 +156,7 @@ fn test_batch_vs_individual_consistency() {
     // test basic properties
     #[cfg(feature = "rayon")]
     {
-        use rand::{SeedableRng, rngs::StdRng};
-
-        // Test RNG for parallel processing
-        #[derive(Clone)]
-        struct TestRng(StdRng);
-
-        impl TestRng {
-            fn new(seed: u64) -> Self {
-                Self(StdRng::seed_from_u64(seed))
-            }
-        }
-
-        impl rand::RngCore for TestRng {
-            fn next_u32(&mut self) -> u32 {
-                self.0.next_u32()
-            }
-
-            fn next_u64(&mut self) -> u64 {
-                self.0.next_u64()
-            }
-
-            fn fill_bytes(&mut self, dest: &mut [u8]) {
-                self.0.fill_bytes(dest)
-            }
-        }
-
-        let rng = TestRng::new(42);
+        let rng = wyrand::WyRand::new(42);
         let batch_results = simple_dither_iter(values.clone(), 255.0, &rng);
 
         // Test that results are valid (within expected range)
@@ -197,11 +170,11 @@ fn test_batch_vs_individual_consistency() {
     {
         // Test that batch and individual calls produce same results with
         // same seed
-        let mut rng1 = SmallRng::seed_from_u64(42);
+        let mut rng1 = wyrand::WyRand::new(42);
         let batch_results =
             simple_dither_iter(values.clone(), 255.0, &mut rng1);
 
-        let mut rng2 = SmallRng::seed_from_u64(42);
+        let mut rng2 = wyrand::WyRand::new(42);
         let individual_results: Vec<f32> = values
             .iter()
             .map(|&v| simple_dither(v, 255.0, &mut rng2))
@@ -213,7 +186,7 @@ fn test_batch_vs_individual_consistency() {
 
 #[test]
 fn test_iterator_functions() {
-    let mut rng = SmallRng::seed_from_u64(42);
+    let mut rng = wyrand::WyRand::new(42);
 
     // Test with different input types
     let vec_input = vec![0.2f32, 0.5, 0.8];
@@ -245,10 +218,10 @@ fn test_batch_consistency() {
     let values = vec![0.2, 0.5, 0.8];
 
     // Test that different input types produce same results
-    let mut rng1 = SmallRng::seed_from_u64(42);
+    let mut rng1 = wyrand::WyRand::new(42);
     let vec_results = simple_dither_iter(values.clone(), 255.0, &mut rng1);
 
-    let mut rng2 = SmallRng::seed_from_u64(42);
+    let mut rng2 = wyrand::WyRand::new(42);
     let iter_results =
         simple_dither_iter(values.iter().copied(), 255.0, &mut rng2);
 
@@ -259,7 +232,7 @@ fn test_batch_consistency() {
 
 #[test]
 fn test_iterator_adapter_basic() {
-    let mut rng = SmallRng::seed_from_u64(42);
+    let mut rng = wyrand::WyRand::new(42);
     let values = vec![0.2f32, 0.5, 0.8];
 
     // Test basic iterator adapter
@@ -274,7 +247,7 @@ fn test_iterator_adapter_basic() {
 
 #[test]
 fn test_iterator_adapter_chaining() {
-    let mut rng = SmallRng::seed_from_u64(42);
+    let mut rng = wyrand::WyRand::new(42);
     let values = vec![0.1f32, 0.3, 0.6, 0.9];
 
     // Test chaining with map
@@ -292,7 +265,7 @@ fn test_iterator_adapter_chaining() {
 
 #[test]
 fn test_iterator_adapter_full_dither() {
-    let mut rng = SmallRng::seed_from_u64(42);
+    let mut rng = wyrand::WyRand::new(42);
     let values = vec![0.2f32, 0.5, 0.8];
 
     // Test full dither method
@@ -312,11 +285,11 @@ fn test_iterator_adapter_vs_function() {
     // Without rayon, results should be identical with same seed
     #[cfg(not(feature = "rayon"))]
     {
-        let mut rng1 = SmallRng::seed_from_u64(42);
+        let mut rng1 = wyrand::WyRand::new(42);
         let adapter_result: Vec<f32> =
             values.iter().copied().simple_dither(255.0, &mut rng1);
 
-        let mut rng2 = SmallRng::seed_from_u64(42);
+        let mut rng2 = wyrand::WyRand::new(42);
         let function_result =
             simple_dither_iter(values.iter().copied(), 255.0, &mut rng2);
 
@@ -326,32 +299,7 @@ fn test_iterator_adapter_vs_function() {
     // With rayon, just test validity
     #[cfg(feature = "rayon")]
     {
-        use rand::{SeedableRng, rngs::StdRng};
-
-        #[derive(Clone)]
-        struct TestRng(StdRng);
-
-        impl TestRng {
-            fn new(seed: u64) -> Self {
-                Self(StdRng::seed_from_u64(seed))
-            }
-        }
-
-        impl rand::RngCore for TestRng {
-            fn next_u32(&mut self) -> u32 {
-                self.0.next_u32()
-            }
-
-            fn next_u64(&mut self) -> u64 {
-                self.0.next_u64()
-            }
-
-            fn fill_bytes(&mut self, dest: &mut [u8]) {
-                self.0.fill_bytes(dest)
-            }
-        }
-
-        let rng = TestRng::new(42);
+        let rng = wyrand::WyRand::new(42);
         let adapter_result: Vec<f32> =
             values.iter().copied().simple_dither(255.0, &rng);
 
@@ -364,7 +312,7 @@ fn test_iterator_adapter_vs_function() {
 
 #[test]
 fn test_iterator_adapter_complex_chain() {
-    let mut rng = SmallRng::seed_from_u64(42);
+    let mut rng = wyrand::WyRand::new(42);
 
     // Test complex iterator chain
     let result: Vec<f32> = (0..10)
