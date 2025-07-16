@@ -1,6 +1,6 @@
 //! Functions and traits for quantizing values with error-diffusion.
 //!
-//! Quantizing from `f64`/`f32`/`f16` to `u32/`u16`/`u8` without dithering
+//! Quantizing from `f64`/`f32`/`f16` to `u32`/`u16`/`u8` without dithering
 //! creates banding. This crate provides dithering to reduce quantization
 //! artifacts.
 //!
@@ -9,11 +9,12 @@
 //! - **Single values**: [`dither()`], [`simple_dither()`].
 //! - **Iterator processing**: [`dither_iter()`], [`simple_dither_iter()`].
 //! - **In-place operations**: [`dither_slice()`], [`simple_dither_slice()`].
-//! - **Iterator adapters**: [`DitherIteratorExt`] for method chaining.
+//! - **Iterator adapters**: [`DitherIteratorExt`][`DitherParallelIteratorExt`]
+//!   for method chaining.
 //! - **Trait-based API**: [`Dither`], [`SimpleDither`] traits.
-//! - **no_std support**: Works in embedded environments.
+//! - **`no_std` support**: Works in embedded environments.
 //! - **Generic types**: `f32`, `f64`, `f16` (with `nightly_f16` feature), or
-//!   any [`DitherFloat`] implementation.
+//!   any type implementing [`DitherFloat`].
 //!
 //! # Quick Start
 //!
@@ -722,7 +723,7 @@ where
 {
     /// Apply dithering to all values in the iterator with full control.
     ///
-    /// This is equivalent to calling [`dither_iter()`] but with a fluent API.
+    /// This is equivalent to calling [`dither_iter()`].
     ///
     /// # Examples
     ///
@@ -950,7 +951,7 @@ where
 
 #[cfg(feature = "rayon")]
 /// Automatic implementation of DitherParallelIteratorExt for all parallel
-/// iterators yielding DitherFloat types.
+/// iterators yielding `DitherFloat` types.
 impl<I, T> DitherParallelIteratorExt<T> for I
 where
     I: rayon::iter::ParallelIterator<Item = T>,
