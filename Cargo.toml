@@ -21,12 +21,14 @@ libm = ["dep:libm"]
 ## Enables parallel processing via `rayon`.
 rayon = ["dep:rayon", "dep:smallvec"]
 ## Enables support for native `f16` type (requires `nightly`).
-nightly_f16 = ["common_traits/nightly_f16"]
+# NOTE: Temporarily disabled for crates.io publishing - requires git dependency
+# nightly_f16 = ["dep:common_traits_f16"]
 ## Enables true blue noise dithering using precomputed 256×256×4 table (adds ~5MB to binary size).
 blue_noise = []
 
 [dependencies]
-common_traits = { git = "https://github.com/virtualritz/common_traits.git", default-features = false }
+common_traits = { version = "0.12", default-features = false }
+# common_traits_f16 = { git = "https://github.com/virtualritz/common_traits.git", package = "common_traits", default-features = false, features = ["nightly_f16"], optional = true }
 libm = { version = "0.2", optional = true }
 rayon = { version = "1", optional = true }
 smallvec = { version = "1", optional = true }

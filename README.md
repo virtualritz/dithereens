@@ -83,7 +83,7 @@ let mut pixels: Vec<f32> = vec![0.5; width * height];
 
 // Use IGN for 2D dithering
 let method = InterleavedGradientNoise::new(42);
-simple_dither_slice_2d(&mut pixels, width as u32, &method).unwrap();
+simple_dither_slice_2d(&mut pixels, width, 255.0, &method);
 
 // pixels now contains dithered values
 ```
@@ -157,7 +157,7 @@ let width = 256;
 let mut pixels: Vec<f32> = vec![0.5; width * width];
 
 let blue_noise = BlueNoise::new(42);
-simple_dither_slice_2d(&mut pixels, width as u32, &blue_noise).unwrap();
+simple_dither_slice_2d(&mut pixels, width, 255.0, &blue_noise);
 ```
 
 <!-- cargo-rdme end -->

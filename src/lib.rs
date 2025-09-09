@@ -59,7 +59,7 @@
 //!
 //! // Use IGN for fast 2D dithering
 //! let method = InterleavedGradientNoise::new(42);
-//! simple_dither_slice_2d(&mut pixels, width as u32, &method).unwrap();
+//! simple_dither_slice_2d(&mut pixels, width, 255.0, &method);
 //! ```
 //!
 //! # Performance Guide
@@ -133,7 +133,11 @@ mod blue_noise;
 extern crate alloc;
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
+#[cfg(not(feature = "nightly_f16"))]
 use common_traits::{CastableFrom, Number};
+
+#[cfg(feature = "nightly_f16")]
+use common_traits_f16::{CastableFrom, Number};
 use core::{
     cmp::PartialOrd,
     ops::{Add, Mul, Neg, Sub},
