@@ -16,14 +16,14 @@ reduce quantization artifacts.
 
 - **Deterministic**: Same input with same seed always produces same output.
 - **Multiple dithering methods**: Hash, R2, GoldenRatio for 1D; IGN, SpatialHash, BlueNoise for 2D.
-- **Single values**: [`dither()`], [`simple_dither()`].
-- **Iterator processing**: [`dither_iter()`], [`simple_dither_iter()`].
-- **In-place operations**: [`dither_slice()`], [`simple_dither_slice()`].
+- **Single values**: [`dither()`](https://docs.rs/dithereens/latest/dithereens/fn.dither.html), [`simple_dither()`](https://docs.rs/dithereens/latest/dithereens/fn.simple_dither.html).
+- **Iterator processing**: [`dither_iter()`](https://docs.rs/dithereens/latest/dithereens/fn.dither_iter.html), [`simple_dither_iter()`](https://docs.rs/dithereens/latest/dithereens/fn.simple_dither_iter.html).
+- **In-place operations**: [`dither_slice()`](https://docs.rs/dithereens/latest/dithereens/fn.dither_slice.html), [`simple_dither_slice()`](https://docs.rs/dithereens/latest/dithereens/fn.simple_dither_slice.html).
 - **Image support**: Both 1D methods (processing as flat array) and 2D methods (using coordinates).
 - **Custom methods**: Use specific dithering algorithms via `*_with_method()` functions.
 - **`no_std` support**: Works in embedded environments.
 - **Generic types**: `f32`, `f64`, `f16` (with `nightly_f16` feature), or
-  any type implementing [`DitherFloat`].
+  any type implementing [`DitherFloat`](https://docs.rs/dithereens/latest/dithereens/trait.DitherFloat.html).
 - **Blue noise**: High-quality blue noise dithering (with `blue_noise` feature).
 
 ### Quick Start
@@ -120,11 +120,11 @@ simple_dither_slice_2d(&mut pixels, width, 255.0, &method);
 
 Benchmarks with 10,000 values:
 
-- **Single values**: [`dither()`], [`simple_dither()`].
-- **In-place slice operations**: [`dither_slice()`],
+- **Single values**: [`dither()`](https://docs.rs/dithereens/latest/dithereens/fn.dither.html), [`simple_dither()`](https://docs.rs/dithereens/latest/dithereens/fn.simple_dither.html).
+- **In-place slice operations**: [`dither_slice()`](https://docs.rs/dithereens/latest/dithereens/fn.dither_slice.html),
   [`simple_dither_slice()`] (~5.6x faster than iterator methods).
-- **Iterator chains**: [`dither_iter()`], [`simple_dither_iter()`], or
-  [`DitherIteratorExt`] adapters (allocation overhead).
+- **Iterator chains**: [`dither_iter()`](https://docs.rs/dithereens/latest/dithereens/fn.dither_iter.html), [`simple_dither_iter()`](https://docs.rs/dithereens/latest/dithereens/fn.simple_dither_iter.html), or
+  [`DitherIteratorExt`](https://docs.rs/dithereens/latest/dithereens/trait.DitherIteratorExt.html) adapters (allocation overhead).
 
 ### Parallel Processing
 
