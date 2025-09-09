@@ -5,55 +5,87 @@ _Before (top) and after (bottom) dithering a gradient (uses `simple_dither()`, i
 
 <!-- cargo-rdme start -->
 
-Functions and traits for quantizing values with error-diffusion.
+Functions and traits for quantizing values with deterministic hash-based error-diffusion.
 
 Quantizing from `f64`/`f32`/`f16` to `u32`/`u16`/`u8` without dithering
-creates banding. This crate provides dithering to reduce quantization
-artifacts.
+creates banding. This crate provides deterministic hash-based dithering to
+reduce quantization artifacts.
 
 ## Overview
 
+- **Deterministic**: Same input with same seed always produces same output.
+- **Multiple dithering methods**: Hash, R2, GoldenRatio for 1D; IGN, SpatialHash, BlueNoise for 2D.
 - **Single values**: [`dither()`], [`simple_dither()`].
 - **Iterator processing**: [`dither_iter()`], [`simple_dither_iter()`].
 - **In-place operations**: [`dither_slice()`], [`simple_dither_slice()`].
-- **Iterator adapters**: [`DitherIteratorExt`][`DitherParallelIteratorExt`]
-  for method chaining.
-- **Trait-based API**: [`Dither`], [`SimpleDither`] traits.
+- **2D dithering**: [`dither_slice_2d()`], [`simple_dither_slice_2d()`] for images.
+- **Custom methods**: Use specific dithering algorithms via [`*_with_method()`] functions.
 - **`no_std` support**: Works in embedded environments.
 - **Generic types**: `f32`, `f64`, `f16` (with `nightly_f16` feature), or
   any type implementing [`DitherFloat`].
+- **Blue noise**: High-quality blue noise dithering (with `blue_noise` feature).
 
 ## Quick Start
 
 ```rust
-let mut rng = wyrand::WyRand::new(42);
+use dithereens::simple_dither;
 
 let value: f32 = 0.5;
 
-// Dither `value` to `127u8` or `128u8`, with a probability of 50%.
-// Note that we still clamp the value since it could be outside.
-// the target type's range.
+// Dither `value` to `127u8` or `128u8` deterministically.
+// The same index and seed will always produce the same result.
 let dithered_value: u8 =
-    simple_dither(value, 255.0, &mut rng).clamp(0.0, 255.0) as u8;
+    simple_dither(value, 255.0, 0, 42).clamp(0.0, 255.0) as u8;
 
 assert!(dithered_value == 127 || 128 == dithered_value);
 ```
 
-## Iterator Adapters
+## Dithering Methods
 
-Use [`DitherIteratorExt`] for ergonomic method chaining:
+### 1D Methods (for sequential data)
+- **Hash** (default): Fast hash-based dithering
+- **R2**: Low-discrepancy sequence using the R2 sequence
+- **GoldenRatio**: Golden ratio-based sequence
+
+### 2D Methods (for images)
+- **InterleavedGradientNoise (IGN)**: Fast, good quality for real-time graphics
+- **SpatialHash**: Spatial hash function for blue noise-like properties
+- **BlueNoiseApprox**: Approximation combining IGN and SpatialHash
+- **BlueNoise** (requires `blue_noise` feature): True blue noise from precomputed tables
+
+## Using Custom Methods
 
 ```rust
-let mut rng = wyrand::WyRand::new(42);
-let pixel_values = vec![0.2f32, 0.5, 0.8, 0.1, 0.9];
+use dithereens::{simple_dither_with_method, Hash, R2, GoldenRatio};
 
-let result: Vec<f32> = pixel_values
-    .iter()
-    .copied()
-    // +3/4 EV exposure.
-    .map(|pixel| pixel * 2.0f32.powf(3.0 / 4.0))
-    // Dither.
-    .simple_dither(255.0, &mut rng);
+let value = 0.5f32;
+let seed = 42;
+
+// Use different dithering methods
+let hash_method = Hash::new(seed);
+let r2_method = R2::new(seed);
+let golden_method = GoldenRatio::new(seed);
+
+let dithered_hash = simple_dither_with_method(value, 255.0, 0, &hash_method);
+let dithered_r2 = simple_dither_with_method(value, 255.0, 0, &r2_method);
+let dithered_golden = simple_dither_with_method(value, 255.0, 0, &golden_method);
+```
+
+## 2D Dithering for Images
+
+```rust
+use dithereens::{simple_dither_slice_2d, InterleavedGradientNoise};
+
+// Example: dither a grayscale image
+let width = 256;
+let height = 256;
+let mut pixels: Vec<f32> = vec![0.5; width * height];
+
+// Use IGN for 2D dithering
+let method = InterleavedGradientNoise::new(42);
+simple_dither_slice_2d(&mut pixels, width as u32, &method).unwrap();
+
+// pixels now contains dithered values
 ```
 
 ## Performance Guide
@@ -69,9 +101,8 @@ Benchmarks with 10,000 values:
 ## Parallel Processing
 
 Via `rayon` (enabled by default). With `rayon` enabled, `_iter` and
-`_slice` functions use parallel processing. The `RNG` must implement
-`Rng + Send + Clone`. [`DitherParallelIteratorExt`] provides fluent API for
-parallel iterator chains.
+`_slice` functions use parallel processing automatically for better performance
+on large datasets.
 
 ## `no_std` Support
 
@@ -82,7 +113,7 @@ used.
 ```toml
 [dependencies]
 # `no_std`
-dithereens = { version = "0.1", default-features = false }
+dithereens = { version = "0.3", default-features = false }
 ```
 
 ```toml
@@ -90,7 +121,7 @@ dithereens = { version = "0.1", default-features = false }
 # Optional: uses `libm`'s `round()` function instead of a manual
 # implementation for `no_std`.
 dithereens = {
-   version = "0.1",
+   version = "0.3",
    default-features = false,
    features = ["libm"]
 }
@@ -103,7 +134,30 @@ Rust):
 
 ```toml
 [dependencies]
-dithereens = { version = "0.1", features = ["nightly_f16"] }
+dithereens = { version = "0.3", features = ["nightly_f16"] }
+```
+
+## Blue Noise Support
+
+Enable the `blue_noise` feature for high-quality blue noise dithering:
+
+```toml
+[dependencies]
+dithereens = { version = "0.3", features = ["blue_noise"] }
+```
+
+This adds the `BlueNoise` struct which provides true blue noise dithering
+using a precomputed 256×256×4 table. Note: This increases binary size by ~5MB.
+
+```rust
+#[cfg(feature = "blue_noise")]
+use dithereens::{simple_dither_slice_2d, BlueNoise};
+
+let width = 256;
+let mut pixels: Vec<f32> = vec![0.5; width * width];
+
+let blue_noise = BlueNoise::new(42);
+simple_dither_slice_2d(&mut pixels, width as u32, &blue_noise).unwrap();
 ```
 
 <!-- cargo-rdme end -->

@@ -7,13 +7,15 @@
 //!
 //! # Overview
 //!
+//! - **Deterministic**: Same input with same seed always produces same output.
+//! - **Multiple methods**: Hash, R2, GoldenRatio for 1D; IGN, SpatialHash, BlueNoise for 2D.
 //! - **Single values**: [`dither()`], [`simple_dither()`].
 //! - **Iterator processing**: [`dither_iter()`], [`simple_dither_iter()`].
 //! - **In-place operations**: [`dither_slice()`], [`simple_dither_slice()`].
+//! - **2D support**: [`dither_slice_2d()`], [`simple_dither_slice_2d()`] for images.
 //! - **`no_std` support**: Works in embedded environments.
 //! - **Generic types**: `f32`, `f64`, `f16` (with `nightly_f16` feature), or
 //!   any type implementing [`DitherFloat`].
-//! - **Deterministic**: Same input with same seed always produces same output.
 //!
 //! # Quick Start
 //!
@@ -28,6 +30,36 @@
 //!     simple_dither(value, 255.0, 0, 42).clamp(0.0, 255.0) as u8;
 //!
 //! assert!(dithered_value == 127 || 128 == dithered_value);
+//! ```
+//!
+//! # Using Different Methods
+//!
+//! ```rust
+//! # use dithereens::{simple_dither_with_method, Hash, R2, GoldenRatio};
+//! let value = 0.5f32;
+//! 
+//! // Create method instances with a seed
+//! let hash = Hash::new(42);
+//! let r2 = R2::new(42);
+//! let golden = GoldenRatio::new(42);
+//!
+//! // Apply different dithering methods
+//! let dithered_hash = simple_dither_with_method(value, 255.0, 0, &hash);
+//! let dithered_r2 = simple_dither_with_method(value, 255.0, 0, &r2);
+//! let dithered_golden = simple_dither_with_method(value, 255.0, 0, &golden);
+//! ```
+//!
+//! # 2D Image Dithering
+//!
+//! ```rust
+//! # use dithereens::{simple_dither_slice_2d, InterleavedGradientNoise};
+//! let width = 256;
+//! let height = 256;
+//! let mut pixels: Vec<f32> = vec![0.5; width * height];
+//!
+//! // Use IGN for fast 2D dithering
+//! let method = InterleavedGradientNoise::new(42);
+//! simple_dither_slice_2d(&mut pixels, width as u32, &method).unwrap();
 //! ```
 //!
 //! # Performance Guide
