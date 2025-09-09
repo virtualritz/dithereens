@@ -14,8 +14,7 @@
 //! - **In-place operations**: [`dither_slice()`], [`simple_dither_slice()`].
 //! - **2D support**: [`dither_slice_2d()`], [`simple_dither_slice_2d()`] for images.
 //! - **`no_std` support**: Works in embedded environments.
-//! - **Generic types**: `f32`, `f64`, `f16` (with `nightly_f16` feature), or
-//!   any type implementing [`DitherFloat`].
+//! - **Generic types**: `f32`, `f64`, or any type implementing [`DitherFloat`].
 //!
 //! # Quick Start
 //!
@@ -124,7 +123,7 @@
 //! blue noise dithering with stable seed-based variation.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![cfg_attr(feature = "nightly_f16", feature(f16))]
+/* #![cfg_attr(feature = "nightly_f16", feature(f16))] */
 
 #[cfg(feature = "blue_noise")]
 mod blue_noise;
@@ -133,11 +132,7 @@ mod blue_noise;
 extern crate alloc;
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
-#[cfg(not(feature = "nightly_f16"))]
 use common_traits::{CastableFrom, Number};
-
-#[cfg(feature = "nightly_f16")]
-use common_traits_f16::{CastableFrom, Number};
 use core::{
     cmp::PartialOrd,
     ops::{Add, Mul, Neg, Sub},
@@ -639,6 +634,7 @@ impl DitherFloat for f64 {
     }
 }
 
+/* Disabled for crates.io publishing - requires git dependency
 #[cfg(feature = "nightly_f16")]
 impl DitherFloat for f16 {
     #[cfg(feature = "std")]
@@ -665,6 +661,7 @@ impl DitherFloat for f16 {
         rounded as f16
     }
 }
+*/
 
 // Note: No longer can have a static default hash since it needs a seed
 
