@@ -5,78 +5,127 @@
 //! creates banding. This crate provides deterministic hash-based dithering to
 //! reduce quantization artifacts.
 //!
-//! # Overview
+//! ## Overview
 //!
 //! - **Deterministic**: Same input with same seed always produces same output.
-//! - **Multiple methods**: Hash, R2, GoldenRatio for 1D; IGN, SpatialHash, BlueNoise for 2D.
+//! - **Multiple dithering methods**: Hash, R2, GoldenRatio for 1D; IGN, SpatialHash, BlueNoise for 2D.
 //! - **Single values**: [`dither()`], [`simple_dither()`].
 //! - **Iterator processing**: [`dither_iter()`], [`simple_dither_iter()`].
 //! - **In-place operations**: [`dither_slice()`], [`simple_dither_slice()`].
-//! - **2D support**: [`dither_slice_2d()`], [`simple_dither_slice_2d()`] for images.
+//! - **Image support**: Both 1D methods (processing as flat array) and 2D methods (using coordinates).
+//! - **Custom methods**: Use specific dithering algorithms via `*_with_method()` functions.
 //! - **`no_std` support**: Works in embedded environments.
-//! - **Generic types**: `f32`, `f64`, or any type implementing [`DitherFloat`].
+//! - **Generic types**: `f32`, `f64`, `f16` (with `nightly_f16` feature), or
+//!   any type implementing [`DitherFloat`].
+//! - **Blue noise**: High-quality blue noise dithering (with `blue_noise` feature).
 //!
-//! # Quick Start
+//! ## Quick Start
 //!
 //! ```rust
-//! # use dithereens::simple_dither;
+//! use dithereens::simple_dither;
 //!
 //! let value: f32 = 0.5;
 //!
-//! // Dither `value` to `127u8` or `128u8` deterministically
-//! // The same index and seed will always produce the same result
+//! // Dither `value` to `127u8` or `128u8` deterministically.
+//! // The same index and seed will always produce the same result.
 //! let dithered_value: u8 =
 //!     simple_dither(value, 255.0, 0, 42).clamp(0.0, 255.0) as u8;
 //!
 //! assert!(dithered_value == 127 || 128 == dithered_value);
 //! ```
 //!
-//! # Using Different Methods
+//! ## Dithering Methods
+//!
+//! ### 1D Methods (for sequential data and images as flat arrays)
+//! - **Hash** (default): Fast hash-based dithering, good general-purpose quality.
+//! - **R2**: Low-discrepancy sequence using the R2 sequence.
+//! - **GoldenRatio**: Golden ratio-based sequence.
+//!
+//! 1D methods have been used successfully for image dithering for years by
+//! processing images as flat arrays. They work well when you don't need
+//! spatial correlation between pixels.
+//!
+//! ### 2D Methods (for images using spatial coordinates)
+//! - **InterleavedGradientNoise (IGN)**: Fast, good quality for real-time graphics.
+//! - **SpatialHash**: Spatial hash function for blue noise-like properties.
+//! - **BlueNoiseApprox**: Approximation combining IGN and SpatialHash.
+//! - **BlueNoise** (requires `blue_noise` feature): True blue noise from precomputed tables.
+//!
+//! 2D methods use pixel coordinates to create spatially-aware dithering patterns,
+//! which can produce more visually pleasing results for images.
+//!
+//! ## Using Custom Methods
 //!
 //! ```rust
-//! # use dithereens::{simple_dither_with_method, Hash, R2, GoldenRatio};
-//! let value = 0.5f32;
-//! 
-//! // Create method instances with a seed
-//! let hash = Hash::new(42);
-//! let r2 = R2::new(42);
-//! let golden = GoldenRatio::new(42);
+//! use dithereens::{simple_dither_with_method, Hash, R2, GoldenRatio};
 //!
-//! // Apply different dithering methods
-//! let dithered_hash = simple_dither_with_method(value, 255.0, 0, &hash);
-//! let dithered_r2 = simple_dither_with_method(value, 255.0, 0, &r2);
-//! let dithered_golden = simple_dither_with_method(value, 255.0, 0, &golden);
+//! let value = 0.5f32;
+//! let seed = 42;
+//!
+//! // Use different dithering methods.
+//! let hash_method = Hash::new(seed);
+//! let r2_method = R2::new(seed);
+//! let golden_method = GoldenRatio::new(seed);
+//!
+//! let dithered_hash = simple_dither_with_method(value, 255.0, 0, &hash_method);
+//! let dithered_r2 = simple_dither_with_method(value, 255.0, 0, &r2_method);
+//! let dithered_golden = simple_dither_with_method(value, 255.0, 0, &golden_method);
 //! ```
 //!
-//! # 2D Image Dithering
+//! ## Image Dithering with 1D Methods
+//!
+//! 1D methods work great for images when processed as flat arrays:
 //!
 //! ```rust
-//! # use dithereens::{simple_dither_slice_2d, InterleavedGradientNoise};
+//! use dithereens::{simple_dither_slice, Hash};
+//!
+//! // Example: dither a grayscale image.
 //! let width = 256;
 //! let height = 256;
 //! let mut pixels: Vec<f32> = vec![0.5; width * height];
 //!
-//! // Use IGN for fast 2D dithering
-//! let method = InterleavedGradientNoise::new(42);
-//! simple_dither_slice_2d(&mut pixels, width, 255.0, &method);
+//! // Process entire image as flat array with 1D dithering.
+//! simple_dither_slice(&mut pixels, 255.0, 42);
+//!
+//! // pixels now contains dithered values.
 //! ```
 //!
-//! # Performance Guide
+//! ## 2D Dithering for Images
+//!
+//! 2D methods use spatial coordinates for better visual results:
+//!
+//! ```rust
+//! use dithereens::{simple_dither_slice_2d, InterleavedGradientNoise};
+//!
+//! // Example: dither a grayscale image.
+//! let width = 256;
+//! let height = 256;
+//! let mut pixels: Vec<f32> = vec![0.5; width * height];
+//!
+//! // Use IGN for 2D dithering.
+//! let method = InterleavedGradientNoise::new(42);
+//! simple_dither_slice_2d(&mut pixels, width, 255.0, &method);
+//!
+//! // pixels now contains dithered values.
+//! ```
+//!
+//! ## Performance Guide
 //!
 //! Benchmarks with 10,000 values:
 //!
 //! - **Single values**: [`dither()`], [`simple_dither()`].
 //! - **In-place slice operations**: [`dither_slice()`],
-//!   [`simple_dither_slice()`] (fastest, zero allocation)
-//! - **Iterator chains**: [`dither_iter()`], [`simple_dither_iter()`]
-//!   (allocation overhead)
+//!   [`simple_dither_slice()`] (~5.6x faster than iterator methods).
+//! - **Iterator chains**: [`dither_iter()`], [`simple_dither_iter()`], or
+//!   [`DitherIteratorExt`] adapters (allocation overhead).
 //!
-//! # Parallel Processing
+//! ## Parallel Processing
 //!
 //! Via `rayon` (enabled by default). With `rayon` enabled, `_iter` and
-//! `_slice` functions use parallel processing automatically.
+//! `_slice` functions use parallel processing automatically for better performance
+//! on large datasets.
 //!
-//! # `no_std` Support
+//! ## `no_std` Support
 //!
 //! This crate supports `no_std` environments. The `libm` crate provides a
 //! native `round()` implementation. Without `libm`, a manual implementation is
@@ -99,7 +148,7 @@
 //! }
 //! ```
 //!
-//! # Native `f16` Support
+//! ## Native `f16` Support
 //!
 //! Enable the `nightly_f16` feature to use native `f16` types (requires nightly
 //! Rust):
@@ -109,21 +158,31 @@
 //! dithereens = { version = "0.3", features = ["nightly_f16"] }
 //! ```
 //!
-//! # Blue Noise Support
+//! ## Blue Noise Support
 //!
-//! Enable the `blue_noise` feature to use true blue noise dithering with a
-//! precomputed 256×256×4 table (adds ~5MB to binary size):
+//! Enable the `blue_noise` feature for high-quality blue noise dithering:
 //!
 //! ```toml
 //! [dependencies]
 //! dithereens = { version = "0.3", features = ["blue_noise"] }
 //! ```
 //!
-//! This enables the [`BlueNoise`] struct which provides high-quality
-//! blue noise dithering with stable seed-based variation.
+//! This adds the `BlueNoise` struct which provides true blue noise dithering
+//! using a precomputed 256×256×4 table. Note: This increases binary size by ~5MB.
+//!
+//! ```rust
+//! #[cfg(feature = "blue_noise")]
+//! use dithereens::{simple_dither_slice_2d, BlueNoise};
+//!
+//! let width = 256;
+//! let mut pixels: Vec<f32> = vec![0.5; width * width];
+//!
+//! let blue_noise = BlueNoise::new(42);
+//! simple_dither_slice_2d(&mut pixels, width, 255.0, &blue_noise);
+//! ```
 
 #![cfg_attr(not(feature = "std"), no_std)]
-/* #![cfg_attr(feature = "nightly_f16", feature(f16))] */
+#![cfg_attr(feature = "nightly_f16", feature(f16))]
 
 #[cfg(feature = "blue_noise")]
 mod blue_noise;
@@ -132,7 +191,11 @@ mod blue_noise;
 extern crate alloc;
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
+#[cfg(not(feature = "nightly_f16"))]
 use common_traits::{CastableFrom, Number};
+
+#[cfg(feature = "nightly_f16")]
+use common_traits_f16::{CastableFrom, Number};
 use core::{
     cmp::PartialOrd,
     ops::{Add, Mul, Neg, Sub},
@@ -381,7 +444,7 @@ impl Hash {
 impl DitherMethod for Hash {
     #[inline(always)]
     fn compute(&self, index: u32) -> f32 {
-        // Better mixing of index and seed
+        // Better mixing of index and seed.
         let mut hash = index;
         hash = hash.wrapping_mul(1664525).wrapping_add(self.seed);
         hash = hash.wrapping_mul(1664525).wrapping_add(1013904223);
@@ -391,7 +454,7 @@ impl DitherMethod for Hash {
         hash = hash.wrapping_mul(0xc2b2ae35);
         hash ^= hash >> 16;
 
-        // Convert to [-1, 1] range
+        // Convert to [-1, 1] range.
         (hash as f32 / u32::MAX as f32) * 2.0 - 1.0
     }
 }
@@ -412,10 +475,10 @@ impl R2 {
 impl DitherMethod for R2 {
     #[inline(always)]
     fn compute(&self, index: u32) -> f32 {
-        // R2 sequence using generalized golden ratio
+        // R2 sequence using generalized golden ratio.
         const ALPHA: f32 = 0.754_877_7; // 1/φ₂ where φ₂ = 1.32471795724474602596
 
-        // Add seed as initial offset
+        // Add seed as initial offset.
         let value = (self.seed_offset + ALPHA * index as f32).fract();
 
         // Convert from [0, 1] to [-1, 1]
@@ -441,7 +504,7 @@ impl DitherMethod for GoldenRatio {
     fn compute(&self, index: u32) -> f32 {
         const INV_GOLDEN: f32 = 0.618_034; // 1/φ where φ = 1.618033988749
 
-        // Golden ratio sequence with seed offset
+        // Golden ratio sequence with seed offset.
         let value = (self.seed_offset + INV_GOLDEN * index as f32).fract();
 
         // Convert from [0, 1] to [-1, 1]
@@ -467,11 +530,11 @@ impl InterleavedGradientNoise {
 impl DitherMethod2D for InterleavedGradientNoise {
     #[inline(always)]
     fn compute(&self, x: u32, y: u32) -> f32 {
-        // Add seed offset to coordinates
+        // Add seed offset to coordinates.
         let x_offset = x.wrapping_add(self.x_offset);
         let y_offset = y.wrapping_add(self.y_offset);
 
-        // IGN algorithm from Jorge Jimenez
+        // IGN algorithm from Jorge Jimenez.
         let value = (52.982_918
             * ((0.06711056 * x_offset as f32 + 0.00583715 * y_offset as f32)
                 .fract()))
@@ -496,7 +559,7 @@ impl SpatialHash {
 impl DitherMethod2D for SpatialHash {
     #[inline(always)]
     fn compute(&self, x: u32, y: u32) -> f32 {
-        // Combine x, y with good spatial decorrelation
+        // Combine x, y with good spatial decorrelation.
         let mut hash = x;
         hash = hash.wrapping_mul(1664525).wrapping_add(y);
         hash = hash.wrapping_mul(1664525).wrapping_add(self.seed);
@@ -506,7 +569,7 @@ impl DitherMethod2D for SpatialHash {
         hash = hash.wrapping_mul(0xc2b2ae35);
         hash ^= hash >> 16;
 
-        // Convert to [-1, 1] range
+        // Convert to [-1, 1] range.
         (hash as f32 / u32::MAX as f32) * 2.0 - 1.0
     }
 }
@@ -529,7 +592,7 @@ impl BlueNoiseApprox {
 impl DitherMethod2D for BlueNoiseApprox {
     #[inline(always)]
     fn compute(&self, x: u32, y: u32) -> f32 {
-        // Use IGN as base with spatial hash for high-frequency detail
+        // Use IGN as base with spatial hash for high-frequency detail.
         let ign = self.ign.compute(x, y);
         let hash = self.spatial.compute(x >> 1, y >> 1);
 
@@ -634,7 +697,6 @@ impl DitherFloat for f64 {
     }
 }
 
-/* Disabled for crates.io publishing - requires git dependency
 #[cfg(feature = "nightly_f16")]
 impl DitherFloat for f16 {
     #[cfg(feature = "std")]
@@ -661,7 +723,6 @@ impl DitherFloat for f16 {
         rounded as f16
     }
 }
-*/
 
 // Note: No longer can have a static default hash since it needs a seed
 

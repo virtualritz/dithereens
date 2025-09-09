@@ -5,27 +5,28 @@ _Before (top) and after (bottom) dithering a gradient (uses `simple_dither()`, i
 
 <!-- cargo-rdme start -->
 
-Functions and traits for quantizing values with deterministic hash-based error-diffusion.
+Functions and traits for quantizing values with deterministic hash-based
+error-diffusion.
 
 Quantizing from `f64`/`f32`/`f16` to `u32`/`u16`/`u8` without dithering
 creates banding. This crate provides deterministic hash-based dithering to
 reduce quantization artifacts.
 
-## Overview
+### Overview
 
 - **Deterministic**: Same input with same seed always produces same output.
 - **Multiple dithering methods**: Hash, R2, GoldenRatio for 1D; IGN, SpatialHash, BlueNoise for 2D.
 - **Single values**: [`dither()`], [`simple_dither()`].
 - **Iterator processing**: [`dither_iter()`], [`simple_dither_iter()`].
 - **In-place operations**: [`dither_slice()`], [`simple_dither_slice()`].
-- **2D dithering**: [`dither_slice_2d()`], [`simple_dither_slice_2d()`] for images.
-- **Custom methods**: Use specific dithering algorithms via [`*_with_method()`] functions.
+- **Image support**: Both 1D methods (processing as flat array) and 2D methods (using coordinates).
+- **Custom methods**: Use specific dithering algorithms via `*_with_method()` functions.
 - **`no_std` support**: Works in embedded environments.
 - **Generic types**: `f32`, `f64`, `f16` (with `nightly_f16` feature), or
   any type implementing [`DitherFloat`].
 - **Blue noise**: High-quality blue noise dithering (with `blue_noise` feature).
 
-## Quick Start
+### Quick Start
 
 ```rust
 use dithereens::simple_dither;
@@ -40,20 +41,27 @@ let dithered_value: u8 =
 assert!(dithered_value == 127 || 128 == dithered_value);
 ```
 
-## Dithering Methods
+### Dithering Methods
 
-### 1D Methods (for sequential data)
-- **Hash** (default): Fast hash-based dithering
-- **R2**: Low-discrepancy sequence using the R2 sequence
-- **GoldenRatio**: Golden ratio-based sequence
+#### 1D Methods (for sequential data and images as flat arrays)
+- **Hash** (default): Fast hash-based dithering, good general-purpose quality.
+- **R2**: Low-discrepancy sequence using the R2 sequence.
+- **GoldenRatio**: Golden ratio-based sequence.
 
-### 2D Methods (for images)
-- **InterleavedGradientNoise (IGN)**: Fast, good quality for real-time graphics
-- **SpatialHash**: Spatial hash function for blue noise-like properties
-- **BlueNoiseApprox**: Approximation combining IGN and SpatialHash
-- **BlueNoise** (requires `blue_noise` feature): True blue noise from precomputed tables
+1D methods have been used successfully for image dithering for years by
+processing images as flat arrays. They work well when you don't need
+spatial correlation between pixels.
 
-## Using Custom Methods
+#### 2D Methods (for images using spatial coordinates)
+- **InterleavedGradientNoise (IGN)**: Fast, good quality for real-time graphics.
+- **SpatialHash**: Spatial hash function for blue noise-like properties.
+- **BlueNoiseApprox**: Approximation combining IGN and SpatialHash.
+- **BlueNoise** (requires `blue_noise` feature): True blue noise from precomputed tables.
+
+2D methods use pixel coordinates to create spatially-aware dithering patterns,
+which can produce more visually pleasing results for images.
+
+### Using Custom Methods
 
 ```rust
 use dithereens::{simple_dither_with_method, Hash, R2, GoldenRatio};
@@ -61,7 +69,7 @@ use dithereens::{simple_dither_with_method, Hash, R2, GoldenRatio};
 let value = 0.5f32;
 let seed = 42;
 
-// Use different dithering methods
+// Use different dithering methods.
 let hash_method = Hash::new(seed);
 let r2_method = R2::new(seed);
 let golden_method = GoldenRatio::new(seed);
@@ -71,40 +79,60 @@ let dithered_r2 = simple_dither_with_method(value, 255.0, 0, &r2_method);
 let dithered_golden = simple_dither_with_method(value, 255.0, 0, &golden_method);
 ```
 
-## 2D Dithering for Images
+### Image Dithering with 1D Methods
+
+1D methods work great for images when processed as flat arrays:
 
 ```rust
-use dithereens::{simple_dither_slice_2d, InterleavedGradientNoise};
+use dithereens::{simple_dither_slice, Hash};
 
-// Example: dither a grayscale image
+// Example: dither a grayscale image.
 let width = 256;
 let height = 256;
 let mut pixels: Vec<f32> = vec![0.5; width * height];
 
-// Use IGN for 2D dithering
+// Process entire image as flat array with 1D dithering.
+simple_dither_slice(&mut pixels, 255.0, 42);
+
+// pixels now contains dithered values.
+```
+
+### 2D Dithering for Images
+
+2D methods use spatial coordinates for better visual results:
+
+```rust
+use dithereens::{simple_dither_slice_2d, InterleavedGradientNoise};
+
+// Example: dither a grayscale image.
+let width = 256;
+let height = 256;
+let mut pixels: Vec<f32> = vec![0.5; width * height];
+
+// Use IGN for 2D dithering.
 let method = InterleavedGradientNoise::new(42);
 simple_dither_slice_2d(&mut pixels, width, 255.0, &method);
 
-// pixels now contains dithered values
+// pixels now contains dithered values.
 ```
 
-## Performance Guide
+### Performance Guide
 
 Benchmarks with 10,000 values:
 
 - **Single values**: [`dither()`], [`simple_dither()`].
 - **In-place slice operations**: [`dither_slice()`],
-  [`simple_dither_slice()`] (~5.6x faster than iterator methods)
+  [`simple_dither_slice()`] (~5.6x faster than iterator methods).
 - **Iterator chains**: [`dither_iter()`], [`simple_dither_iter()`], or
-  [`DitherIteratorExt`] adapters (allocation overhead)
+  [`DitherIteratorExt`] adapters (allocation overhead).
 
-## Parallel Processing
+### Parallel Processing
 
 Via `rayon` (enabled by default). With `rayon` enabled, `_iter` and
 `_slice` functions use parallel processing automatically for better performance
 on large datasets.
 
-## `no_std` Support
+### `no_std` Support
 
 This crate supports `no_std` environments. The `libm` crate provides a
 native `round()` implementation. Without `libm`, a manual implementation is
@@ -127,7 +155,7 @@ dithereens = {
 }
 ```
 
-## Native `f16` Support
+### Native `f16` Support
 
 Enable the `nightly_f16` feature to use native `f16` types (requires nightly
 Rust):
@@ -137,7 +165,7 @@ Rust):
 dithereens = { version = "0.3", features = ["nightly_f16"] }
 ```
 
-## Blue Noise Support
+### Blue Noise Support
 
 Enable the `blue_noise` feature for high-quality blue noise dithering:
 
