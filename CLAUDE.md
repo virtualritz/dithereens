@@ -110,6 +110,27 @@ cargo run --example dither_2d --features blue_noise
 - Generic over float types (f32, f64, f16 with feature)
 - Separation of concerns: methods compute offsets, functions apply dithering
 
+## Writing Instructions For User Interaction And Documentation
+
+These instructions apply to any communication (e.g. feedback you print to the user) as well as any documentation you write.
+
+- Be concise.
+- AVOID weasel words.
+- Use simple sentences. But feel free to use technical jargon.
+- Do NOT overexplain basic concepts. Assume the user is technically proficient.
+- AVOID flattering, corporate-ish or marketing language. Maintain a neutral viewpoint.
+- AVOID vague and/or generic claims which may seem correct but are not substantiated by the context.
+
+## Documentation
+
+- All code comments MUST end with a period.
+- All doc comments should also end with a period unless they're headlines. This includes list items.
+- All list items in documentation MUST be complete sentences that end with a period.
+- ENSURE an en-dash is expressed as two dashes like so: --. En-dashes are not used for connecting words, e.g. "compile-time".
+- All references to types, keywords, symbols etc. MUST be enclosed in backticks: `struct` `Foo`.
+- For each part of the docs, every first reference to a type, keyword, symbol etc. that is NOT the item itself that is being described MUST be linked to the relevant section in the docs like so: [`Foo`].
+- NEVER use fully qualified paths in doc links. Use [`Foo`] instead of [`foo::bar::Foo`].
+
 ## What AI Must NEVER Do
 
 1. **Never use --release unless explicitly requested** - Debug builds are sufficient for development
@@ -124,7 +145,7 @@ cargo run --example dither_2d --features blue_noise
 
 1. Define struct with seed-based precomputed values
 2. Implement constructor `new(seed: u32)`
-3. Implement appropriate trait (`DitherMethod` or `DitherMethod2D`)
+3. Implement appropriate trait (`LinearRng` or `SpatialRng`)
 4. Add tests comparing sequential vs parallel results
 5. Update documentation and examples
 

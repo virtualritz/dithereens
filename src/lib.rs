@@ -8,16 +8,20 @@
 //! ## Overview
 //!
 //! - **Deterministic**: Same input with same seed always produces same output.
-//! - **Multiple dithering methods**: Hash, R2, GoldenRatio for 1D; IGN, SpatialHash, BlueNoise for 2D.
+//! - **Multiple dithering methods**: Hash, R2, GoldenRatio for 1D; IGN,
+//!   SpatialHash, BlueNoise for 2D.
 //! - **Single values**: [`dither()`], [`simple_dither()`].
 //! - **Iterator processing**: [`dither_iter()`], [`simple_dither_iter()`].
 //! - **In-place operations**: [`dither_slice()`], [`simple_dither_slice()`].
-//! - **Image support**: Both 1D methods (processing as flat array) and 2D methods (using coordinates).
-//! - **Custom methods**: Use specific dithering algorithms via `*_with_method()` functions.
+//! - **Image support**: Both 1D methods (processing as flat array) and 2D
+//!   methods (using coordinates).
+//! - **Custom methods**: Use specific dithering algorithms via
+//!   `*_with_method()` functions.
 //! - **`no_std` support**: Works in embedded environments.
 //! - **Generic types**: `f32`, `f64`, `f16` (with `nightly_f16` feature), or
 //!   any type implementing [`DitherFloat`].
-//! - **Blue noise**: High-quality blue noise dithering (with `blue_noise` feature).
+//! - **Blue noise**: High-quality blue noise dithering (with `blue_noise`
+//!   feature).
 //!
 //! ## Quick Start
 //!
@@ -37,7 +41,8 @@
 //! ## Dithering Methods
 //!
 //! ### 1D Methods (for sequential data and images as flat arrays)
-//! - **Hash** (default): Fast hash-based dithering, good general-purpose quality.
+//! - **Hash** (default): Fast hash-based dithering, good general-purpose
+//!   quality.
 //! - **R2**: Low-discrepancy sequence using the R2 sequence.
 //! - **GoldenRatio**: Golden ratio-based sequence.
 //!
@@ -46,18 +51,20 @@
 //! spatial correlation between pixels.
 //!
 //! ### 2D Methods (for images using spatial coordinates)
-//! - **InterleavedGradientNoise (IGN)**: Fast, good quality for real-time graphics.
+//! - **InterleavedGradientNoise (IGN)**: Fast, good quality for real-time
+//!   graphics.
 //! - **SpatialHash**: Spatial hash function for blue noise-like properties.
 //! - **BlueNoiseApprox**: Approximation combining IGN and SpatialHash.
-//! - **BlueNoise** (requires `blue_noise` feature): True blue noise from precomputed tables.
+//! - **BlueNoise** (requires `blue_noise` feature): True blue noise from
+//!   precomputed tables.
 //!
-//! 2D methods use pixel coordinates to create spatially-aware dithering patterns,
-//! which can produce more visually pleasing results for images.
+//! 2D methods use pixel coordinates to create spatially-aware dithering
+//! patterns, which can produce more visually pleasing results for images.
 //!
 //! ## Using Custom Methods
 //!
 //! ```rust
-//! use dithereens::{simple_dither_with_method, Hash, R2, GoldenRatio};
+//! use dithereens::{GoldenRatio, Hash, R2, simple_dither_with_linear_rng};
 //!
 //! let value = 0.5f32;
 //! let seed = 42;
@@ -67,9 +74,12 @@
 //! let r2_method = R2::new(seed);
 //! let golden_method = GoldenRatio::new(seed);
 //!
-//! let dithered_hash = simple_dither_with_method(value, 255.0, 0, &hash_method);
-//! let dithered_r2 = simple_dither_with_method(value, 255.0, 0, &r2_method);
-//! let dithered_golden = simple_dither_with_method(value, 255.0, 0, &golden_method);
+//! let dithered_hash =
+//!     simple_dither_with_linear_rng(value, 255.0, 0, &hash_method);
+//! let dithered_r2 =
+//!     simple_dither_with_linear_rng(value, 255.0, 0, &r2_method);
+//! let dithered_golden =
+//!     simple_dither_with_linear_rng(value, 255.0, 0, &golden_method);
 //! ```
 //!
 //! ## Image Dithering with 1D Methods
@@ -77,7 +87,7 @@
 //! 1D methods work great for images when processed as flat arrays:
 //!
 //! ```rust
-//! use dithereens::{simple_dither_slice, Hash};
+//! use dithereens::{Hash, simple_dither_slice};
 //!
 //! // Example: dither a grayscale image.
 //! let width = 256;
@@ -95,7 +105,7 @@
 //! 2D methods use spatial coordinates for better visual results:
 //!
 //! ```rust
-//! use dithereens::{simple_dither_slice_2d, InterleavedGradientNoise};
+//! use dithereens::{InterleavedGradientNoise, simple_dither_slice_2d};
 //!
 //! // Example: dither a grayscale image.
 //! let width = 256;
@@ -122,8 +132,8 @@
 //! ## Parallel Processing
 //!
 //! Via `rayon` (enabled by default). With `rayon` enabled, `_iter` and
-//! `_slice` functions use parallel processing automatically for better performance
-//! on large datasets.
+//! `_slice` functions use parallel processing automatically for better
+//! performance on large datasets.
 //!
 //! ## `no_std` Support
 //!
@@ -168,11 +178,12 @@
 //! ```
 //!
 //! This adds the `BlueNoise` struct which provides true blue noise dithering
-//! using a precomputed 256×256×4 table. Note: This increases binary size by ~5MB.
+//! using a precomputed 256×256×4 table. Note: This increases binary size by
+//! ~5MB.
 //!
 //! ```rust
 //! #[cfg(feature = "blue_noise")]
-//! use dithereens::{simple_dither_slice_2d, BlueNoise};
+//! use dithereens::{BlueNoise, simple_dither_slice_2d};
 //!
 //! let width = 256;
 //! let mut pixels: Vec<f32> = vec![0.5; width * width];
@@ -201,8 +212,32 @@ use core::{
     ops::{Add, Mul, Neg, Sub},
 };
 
-/// Trait for 1D dithering methods.
-pub trait DitherMethod: Send + Sync {
+/// Trait for linear (1D) random number generators.
+///
+/// These generators produce deterministic random values based on a single
+/// index, making them ideal for sequential processing and 1D dithering
+/// applications.
+///
+/// # When to Use LinearRng
+///
+/// Use [`LinearRng`] implementations when:
+/// - Processing data sequentially (arrays, streams).
+/// - Dithering images as flat pixel arrays.
+/// - You need consistent results with a given seed.
+/// - Memory efficiency matters (no lookup tables).
+///
+/// # Available Implementations
+///
+/// - [`Hash`] -- Fast hash-based RNG. Good general-purpose quality with uniform
+///   distribution.
+/// - [`R2`] -- Low-discrepancy sequence using the R2 recurrence. Better spatial
+///   distribution than random.
+/// - [`GoldenRatio`] -- Golden ratio sequence. Optimal 1D coverage with minimal
+///   clustering.
+pub trait LinearRng: Sized + Send + Sync {
+    /// Create a new linear RNG with the given seed.
+    fn new(seed: u32) -> Self;
+
     /// Compute dither offset for a given index.
     /// Returns a value in range [-1, 1] to be scaled by amplitude.
     fn compute(&self, index: u32) -> f32;
@@ -221,7 +256,7 @@ pub trait DitherMethod: Send + Sync {
         T: DitherFloat,
         Self: Sized,
     {
-        dither_with_method(value, min, one, dither_amplitude, index, self)
+        dither_with_linear_rng(value, min, one, dither_amplitude, index, self)
     }
 
     /// Simple dither for a single value.
@@ -231,7 +266,7 @@ pub trait DitherMethod: Send + Sync {
         T: DitherFloat + Number + CastableFrom<f32>,
         Self: Sized,
     {
-        simple_dither_with_method(value, one, index, self)
+        simple_dither_with_linear_rng(value, one, index, self)
     }
 
     /// Dither values in a slice.
@@ -246,7 +281,7 @@ pub trait DitherMethod: Send + Sync {
         T: DitherFloat,
         Self: Sized,
     {
-        dither_slice_with_method(values, min, one, dither_amplitude, self)
+        dither_slice_with_linear_rng(values, min, one, dither_amplitude, self)
     }
 
     /// Dither values in a slice (parallel version).
@@ -261,7 +296,7 @@ pub trait DitherMethod: Send + Sync {
         T: DitherFloat + Send + Sync,
         Self: Sized,
     {
-        dither_slice_with_method(values, min, one, dither_amplitude, self)
+        dither_slice_with_linear_rng(values, min, one, dither_amplitude, self)
     }
 
     /// Simple dither for values in a slice.
@@ -271,7 +306,7 @@ pub trait DitherMethod: Send + Sync {
         T: DitherFloat + Number + CastableFrom<f32>,
         Self: Sized,
     {
-        simple_dither_slice_with_method(values, one, self)
+        simple_dither_slice_with_linear_rng(values, one, self)
     }
 
     /// Simple dither for values in a slice (parallel version).
@@ -281,7 +316,7 @@ pub trait DitherMethod: Send + Sync {
         T: DitherFloat + Number + CastableFrom<f32> + Send + Sync,
         Self: Sized,
     {
-        simple_dither_slice_with_method(values, one, self)
+        simple_dither_slice_with_linear_rng(values, one, self)
     }
 
     /// Dither values from an iterator.
@@ -298,7 +333,7 @@ pub trait DitherMethod: Send + Sync {
         I: IntoIterator<Item = T>,
         Self: Sized,
     {
-        dither_iter_with_method(values, min, one, dither_amplitude, self)
+        dither_iter_with_linear_rng(values, min, one, dither_amplitude, self)
     }
 
     /// Dither values from an iterator (parallel version).
@@ -316,7 +351,7 @@ pub trait DitherMethod: Send + Sync {
         I::IntoIter: Send,
         Self: Sized,
     {
-        dither_iter_with_method(values, min, one, dither_amplitude, self)
+        dither_iter_with_linear_rng(values, min, one, dither_amplitude, self)
     }
 
     /// Simple dither for values from an iterator.
@@ -327,7 +362,7 @@ pub trait DitherMethod: Send + Sync {
         I: IntoIterator<Item = T>,
         Self: Sized,
     {
-        simple_dither_iter_with_method(values, one, self)
+        simple_dither_iter_with_linear_rng(values, one, self)
     }
 
     /// Simple dither for values from an iterator (parallel version).
@@ -339,14 +374,40 @@ pub trait DitherMethod: Send + Sync {
         I::IntoIter: Send,
         Self: Sized,
     {
-        simple_dither_iter_with_method(values, one, self)
+        simple_dither_iter_with_linear_rng(values, one, self)
     }
 }
 
-/// Trait for 2D dithering methods.
-pub trait DitherMethod2D: Send + Sync {
-    /// Compute dither offset for given 2D coordinates.
-    /// Returns a value in range [-1, 1] to be scaled by amplitude.
+/// Trait for spatial random number generators.
+///
+/// These generators produce deterministic random values based on 2D
+/// coordinates, making them ideal for parallel processing and applications like
+/// dithering.
+///
+/// # When to Use SpatialRng
+///
+/// Use [`SpatialRng`] implementations when:
+/// - Processing 2D data (images, textures).
+/// - You need spatially-aware noise patterns.
+/// - Parallel processing is important (each pixel independent).
+/// - Visual quality matters more than speed.
+///
+/// # Available Implementations
+///
+/// - [`InterleavedGradientNoise`] -- Fast IGN algorithm from Jorge Jimenez.
+///   Real-time graphics quality.
+/// - [`SpatialHash`] -- Spatial hash function. Blue noise-like properties with
+///   good performance.
+/// - [`BlueNoiseApprox`] -- Combines IGN and [`SpatialHash`]. Approximates blue
+///   noise characteristics.
+/// - [`BlueNoise`] (requires `blue_noise` feature) -- True blue noise from
+///   precomputed tables. Highest quality.
+pub trait SpatialRng: Sized + Send + Sync {
+    /// Create a new spatial RNG with the given seed.
+    fn new(seed: u32) -> Self;
+
+    /// Compute a deterministic value for given 2D coordinates.
+    /// Returns a value in range [-1, 1].
     fn compute(&self, x: u32, y: u32) -> f32;
 
     /// Dither a single value using 2D coordinates.
@@ -431,6 +492,10 @@ pub trait DitherMethod2D: Send + Sync {
 }
 
 /// Hash-based dithering (default method).
+///
+/// Fast general-purpose RNG with uniform distribution. Uses integer
+/// hash mixing for speed. Good choice when you need consistent
+/// performance across all index values.
 pub struct Hash {
     seed: u32,
 }
@@ -441,7 +506,11 @@ impl Hash {
     }
 }
 
-impl DitherMethod for Hash {
+impl LinearRng for Hash {
+    fn new(seed: u32) -> Self {
+        Self { seed }
+    }
+
     #[inline(always)]
     fn compute(&self, index: u32) -> f32 {
         // Better mixing of index and seed.
@@ -460,6 +529,10 @@ impl DitherMethod for Hash {
 }
 
 /// R2 low-discrepancy sequence for improved distribution.
+///
+/// Provides better spatial coverage than random sequences. Based on
+/// the generalized golden ratio (1.32471...). Produces visually
+/// pleasing patterns with minimal clustering or gaps.
 pub struct R2 {
     seed_offset: f32,
 }
@@ -472,7 +545,13 @@ impl R2 {
     }
 }
 
-impl DitherMethod for R2 {
+impl LinearRng for R2 {
+    fn new(seed: u32) -> Self {
+        Self {
+            seed_offset: seed as f32 * 0.618_034,
+        }
+    }
+
     #[inline(always)]
     fn compute(&self, index: u32) -> f32 {
         // R2 sequence using generalized golden ratio.
@@ -487,6 +566,10 @@ impl DitherMethod for R2 {
 }
 
 /// Golden ratio sequence for 1D low-discrepancy sampling.
+///
+/// Classic low-discrepancy sequence using the golden ratio (1.618...).
+/// Optimal for 1D coverage with the most uniform distribution possible.
+/// Excellent for gradient-like data or smooth transitions.
 pub struct GoldenRatio {
     seed_offset: f32,
 }
@@ -499,7 +582,13 @@ impl GoldenRatio {
     }
 }
 
-impl DitherMethod for GoldenRatio {
+impl LinearRng for GoldenRatio {
+    fn new(seed: u32) -> Self {
+        Self {
+            seed_offset: seed as f32 * 0.618_034,
+        }
+    }
+
     #[inline(always)]
     fn compute(&self, index: u32) -> f32 {
         const INV_GOLDEN: f32 = 0.618_034; // 1/φ where φ = 1.618033988749
@@ -513,6 +602,10 @@ impl DitherMethod for GoldenRatio {
 }
 
 /// Interleaved Gradient Noise for 2D dithering.
+///
+/// Fast algorithm from Jorge Jimenez's presentation at SIGGRAPH 2014.
+/// Widely used in real-time graphics for its speed and quality balance.
+/// Creates smooth gradient-like patterns with good visual properties.
 pub struct InterleavedGradientNoise {
     x_offset: u32,
     y_offset: u32,
@@ -527,7 +620,14 @@ impl InterleavedGradientNoise {
     }
 }
 
-impl DitherMethod2D for InterleavedGradientNoise {
+impl SpatialRng for InterleavedGradientNoise {
+    fn new(seed: u32) -> Self {
+        Self {
+            x_offset: seed.wrapping_mul(5),
+            y_offset: seed.wrapping_mul(7),
+        }
+    }
+
     #[inline(always)]
     fn compute(&self, x: u32, y: u32) -> f32 {
         // Add seed offset to coordinates.
@@ -546,6 +646,10 @@ impl DitherMethod2D for InterleavedGradientNoise {
 }
 
 /// Spatial hash for 2D blue noise-like properties.
+///
+/// Uses coordinate hashing to create spatially decorrelated noise.
+/// Provides blue noise-like characteristics without lookup tables.
+/// Good balance between quality and memory efficiency.
 pub struct SpatialHash {
     seed: u32,
 }
@@ -556,7 +660,11 @@ impl SpatialHash {
     }
 }
 
-impl DitherMethod2D for SpatialHash {
+impl SpatialRng for SpatialHash {
+    fn new(seed: u32) -> Self {
+        Self { seed }
+    }
+
     #[inline(always)]
     fn compute(&self, x: u32, y: u32) -> f32 {
         // Combine x, y with good spatial decorrelation.
@@ -575,6 +683,11 @@ impl DitherMethod2D for SpatialHash {
 }
 
 /// Blue noise approximation using multiple octaves.
+///
+/// Hybrid approach that combines [`InterleavedGradientNoise`] with
+/// [`SpatialHash`] to approximate true blue noise characteristics.
+/// Better quality than either method alone, without the memory cost
+/// of real blue noise tables.
 pub struct BlueNoiseApprox {
     ign: InterleavedGradientNoise,
     spatial: SpatialHash,
@@ -589,7 +702,14 @@ impl BlueNoiseApprox {
     }
 }
 
-impl DitherMethod2D for BlueNoiseApprox {
+impl SpatialRng for BlueNoiseApprox {
+    fn new(seed: u32) -> Self {
+        Self {
+            ign: InterleavedGradientNoise::new(seed),
+            spatial: SpatialHash::new(seed.wrapping_add(1337)),
+        }
+    }
+
     #[inline(always)]
     fn compute(&self, x: u32, y: u32) -> f32 {
         // Use IGN as base with spatial hash for high-frequency detail.
@@ -602,6 +722,11 @@ impl DitherMethod2D for BlueNoiseApprox {
 }
 
 /// True blue noise using precomputed table with stable seed-based offsetting.
+///
+/// Highest quality dithering using true blue noise from precomputed
+/// tables. Blue noise has optimal spectral characteristics -- high
+/// frequency content with no low-frequency clustering. Results in
+/// the most visually pleasing dithering patterns. Adds ~5MB to binary size.
 #[cfg(feature = "blue_noise")]
 pub struct BlueNoise {
     x_offset: u32,
@@ -621,7 +746,15 @@ impl BlueNoise {
 }
 
 #[cfg(feature = "blue_noise")]
-impl DitherMethod2D for BlueNoise {
+impl SpatialRng for BlueNoise {
+    fn new(seed: u32) -> Self {
+        Self {
+            x_offset: seed.wrapping_mul(13),
+            y_offset: seed.wrapping_mul(17),
+            channel: ((seed >> 16) & 0x3) as usize,
+        }
+    }
+
     #[inline(always)]
     fn compute(&self, x: u32, y: u32) -> f32 {
         // Apply precomputed seed-based offset to coordinates
@@ -740,12 +873,12 @@ where
     T: DitherFloat,
 {
     let method = Hash::new(seed);
-    dither_with_method(value, min, one, dither_amplitude, index, &method)
+    dither_with_linear_rng(value, min, one, dither_amplitude, index, &method)
 }
 
 /// Dither a value using a specific method.
 #[inline]
-pub fn dither_with_method<T, M: DitherMethod>(
+pub fn dither_with_linear_rng<T, M: LinearRng>(
     value: T,
     min: T,
     one: T,
@@ -772,12 +905,12 @@ where
     T: DitherFloat + Number + CastableFrom<f32>,
 {
     let method = Hash::new(seed);
-    simple_dither_with_method(value, one, index, &method)
+    simple_dither_with_linear_rng(value, one, index, &method)
 }
 
 /// Simple dither with specific method.
 #[inline]
-pub fn simple_dither_with_method<T, M: DitherMethod>(
+pub fn simple_dither_with_linear_rng<T, M: LinearRng>(
     value: T,
     one: T,
     index: u32,
@@ -786,7 +919,7 @@ pub fn simple_dither_with_method<T, M: DitherMethod>(
 where
     T: DitherFloat + Number + CastableFrom<f32>,
 {
-    dither_with_method(
+    dither_with_linear_rng(
         value,
         T::ZERO,
         one,
@@ -799,7 +932,7 @@ where
 
 /// Dither a value using 2D coordinates.
 #[inline]
-pub fn dither_2d<T, M: DitherMethod2D>(
+pub fn dither_2d<T, M: SpatialRng>(
     value: T,
     min: T,
     one: T,
@@ -822,7 +955,7 @@ where
 
 /// Simple dither with 2D coordinates.
 #[inline]
-pub fn simple_dither_2d<T, M: DitherMethod2D>(
+pub fn simple_dither_2d<T, M: SpatialRng>(
     value: T,
     one: T,
     x: u32,
@@ -848,7 +981,7 @@ pub fn dither_slice<T>(
     T: DitherFloat,
 {
     let method = Hash::new(seed);
-    dither_slice_with_method(values, min, one, dither_amplitude, &method)
+    dither_slice_with_linear_rng(values, min, one, dither_amplitude, &method)
 }
 
 #[cfg(feature = "rayon")]
@@ -862,12 +995,12 @@ pub fn dither_slice<T>(
     T: DitherFloat + Send + Sync,
 {
     let method = Hash::new(seed);
-    dither_slice_with_method(values, min, one, dither_amplitude, &method)
+    dither_slice_with_linear_rng(values, min, one, dither_amplitude, &method)
 }
 
 /// Dither values in a slice using specific method.
 #[cfg(not(feature = "rayon"))]
-pub fn dither_slice_with_method<T, M: DitherMethod>(
+pub fn dither_slice_with_linear_rng<T, M: LinearRng>(
     values: &mut [T],
     min: T,
     one: T,
@@ -877,7 +1010,7 @@ pub fn dither_slice_with_method<T, M: DitherMethod>(
     T: DitherFloat,
 {
     for (index, value) in values.iter_mut().enumerate() {
-        *value = dither_with_method(
+        *value = dither_with_linear_rng(
             *value,
             min,
             one,
@@ -889,7 +1022,7 @@ pub fn dither_slice_with_method<T, M: DitherMethod>(
 }
 
 #[cfg(feature = "rayon")]
-pub fn dither_slice_with_method<T, M: DitherMethod>(
+pub fn dither_slice_with_linear_rng<T, M: LinearRng>(
     values: &mut [T],
     min: T,
     one: T,
@@ -904,7 +1037,7 @@ pub fn dither_slice_with_method<T, M: DitherMethod>(
         .par_iter_mut()
         .enumerate()
         .for_each(|(index, value)| {
-            *value = dither_with_method(
+            *value = dither_with_linear_rng(
                 *value,
                 min,
                 one,
@@ -917,7 +1050,7 @@ pub fn dither_slice_with_method<T, M: DitherMethod>(
 
 /// Dither a 2D image stored as a flat slice.
 #[cfg(not(feature = "rayon"))]
-pub fn dither_slice_2d<T, M: DitherMethod2D>(
+pub fn dither_slice_2d<T, M: SpatialRng>(
     values: &mut [T],
     width: usize,
     min: T,
@@ -935,7 +1068,7 @@ pub fn dither_slice_2d<T, M: DitherMethod2D>(
 }
 
 #[cfg(feature = "rayon")]
-pub fn dither_slice_2d<T, M: DitherMethod2D>(
+pub fn dither_slice_2d<T, M: SpatialRng>(
     values: &mut [T],
     width: usize,
     min: T,
@@ -965,7 +1098,7 @@ where
     T: DitherFloat + Number + CastableFrom<f32>,
 {
     let method = Hash::new(seed);
-    simple_dither_slice_with_method(values, one, &method)
+    simple_dither_slice_with_linear_rng(values, one, &method)
 }
 
 #[cfg(feature = "rayon")]
@@ -974,12 +1107,12 @@ where
     T: DitherFloat + Number + CastableFrom<f32> + Send + Sync,
 {
     let method = Hash::new(seed);
-    simple_dither_slice_with_method(values, one, &method)
+    simple_dither_slice_with_linear_rng(values, one, &method)
 }
 
 /// Simple dither for slices using specific method.
 #[cfg(not(feature = "rayon"))]
-pub fn simple_dither_slice_with_method<T, M: DitherMethod>(
+pub fn simple_dither_slice_with_linear_rng<T, M: LinearRng>(
     values: &mut [T],
     one: T,
     method: &M,
@@ -987,12 +1120,13 @@ pub fn simple_dither_slice_with_method<T, M: DitherMethod>(
     T: DitherFloat + Number + CastableFrom<f32>,
 {
     for (index, value) in values.iter_mut().enumerate() {
-        *value = simple_dither_with_method(*value, one, index as u32, method);
+        *value =
+            simple_dither_with_linear_rng(*value, one, index as u32, method);
     }
 }
 
 #[cfg(feature = "rayon")]
-pub fn simple_dither_slice_with_method<T, M: DitherMethod>(
+pub fn simple_dither_slice_with_linear_rng<T, M: LinearRng>(
     values: &mut [T],
     one: T,
     method: &M,
@@ -1005,14 +1139,18 @@ pub fn simple_dither_slice_with_method<T, M: DitherMethod>(
         .par_iter_mut()
         .enumerate()
         .for_each(|(index, value)| {
-            *value =
-                simple_dither_with_method(*value, one, index as u32, method);
+            *value = simple_dither_with_linear_rng(
+                *value,
+                one,
+                index as u32,
+                method,
+            );
         });
 }
 
 /// Simple dither for 2D slices.
 #[cfg(not(feature = "rayon"))]
-pub fn simple_dither_slice_2d<T, M: DitherMethod2D>(
+pub fn simple_dither_slice_2d<T, M: SpatialRng>(
     values: &mut [T],
     width: usize,
     one: T,
@@ -1028,7 +1166,7 @@ pub fn simple_dither_slice_2d<T, M: DitherMethod2D>(
 }
 
 #[cfg(feature = "rayon")]
-pub fn simple_dither_slice_2d<T, M: DitherMethod2D>(
+pub fn simple_dither_slice_2d<T, M: SpatialRng>(
     values: &mut [T],
     width: usize,
     one: T,
@@ -1062,7 +1200,7 @@ where
     I: IntoIterator<Item = T>,
 {
     let method = Hash::new(seed);
-    dither_iter_with_method(values, min, one, dither_amplitude, &method)
+    dither_iter_with_linear_rng(values, min, one, dither_amplitude, &method)
 }
 
 #[cfg(feature = "rayon")]
@@ -1079,12 +1217,12 @@ where
     I::IntoIter: Send,
 {
     let method = Hash::new(seed);
-    dither_iter_with_method(values, min, one, dither_amplitude, &method)
+    dither_iter_with_linear_rng(values, min, one, dither_amplitude, &method)
 }
 
 /// Dither values from an iterator using specific method.
 #[cfg(not(feature = "rayon"))]
-pub fn dither_iter_with_method<T, I, M: DitherMethod>(
+pub fn dither_iter_with_linear_rng<T, I, M: LinearRng>(
     values: I,
     min: T,
     one: T,
@@ -1099,7 +1237,7 @@ where
         .into_iter()
         .enumerate()
         .map(|(index, value)| {
-            dither_with_method(
+            dither_with_linear_rng(
                 value,
                 min,
                 one,
@@ -1112,7 +1250,7 @@ where
 }
 
 #[cfg(feature = "rayon")]
-pub fn dither_iter_with_method<T, I, M: DitherMethod>(
+pub fn dither_iter_with_linear_rng<T, I, M: LinearRng>(
     values: I,
     min: T,
     one: T,
@@ -1131,7 +1269,7 @@ where
         .into_par_iter()
         .enumerate()
         .map(|(index, value)| {
-            dither_with_method(
+            dither_with_linear_rng(
                 value,
                 min,
                 one,
@@ -1151,7 +1289,7 @@ where
     I: IntoIterator<Item = T>,
 {
     let method = Hash::new(seed);
-    simple_dither_iter_with_method(values, one, &method)
+    simple_dither_iter_with_linear_rng(values, one, &method)
 }
 
 #[cfg(feature = "rayon")]
@@ -1162,12 +1300,12 @@ where
     I::IntoIter: Send,
 {
     let method = Hash::new(seed);
-    simple_dither_iter_with_method(values, one, &method)
+    simple_dither_iter_with_linear_rng(values, one, &method)
 }
 
 /// Simple dither for iterators using specific method.
 #[cfg(not(feature = "rayon"))]
-pub fn simple_dither_iter_with_method<T, I, M: DitherMethod>(
+pub fn simple_dither_iter_with_linear_rng<T, I, M: LinearRng>(
     values: I,
     one: T,
     method: &M,
@@ -1180,13 +1318,13 @@ where
         .into_iter()
         .enumerate()
         .map(|(index, value)| {
-            simple_dither_with_method(value, one, index as u32, method)
+            simple_dither_with_linear_rng(value, one, index as u32, method)
         })
         .collect()
 }
 
 #[cfg(feature = "rayon")]
-pub fn simple_dither_iter_with_method<T, I, M: DitherMethod>(
+pub fn simple_dither_iter_with_linear_rng<T, I, M: LinearRng>(
     values: I,
     one: T,
     method: &M,
@@ -1203,7 +1341,7 @@ where
         .into_par_iter()
         .enumerate()
         .map(|(index, value)| {
-            simple_dither_with_method(value, one, index as u32, method)
+            simple_dither_with_linear_rng(value, one, index as u32, method)
         })
         .collect()
 }
@@ -1252,7 +1390,7 @@ where
 
     /// Apply dithering with a specific method.
     #[cfg(not(feature = "rayon"))]
-    fn dither_with_method<M: DitherMethod>(
+    fn dither_with_linear_rng<M: LinearRng>(
         self,
         min: T,
         one: T,
@@ -1261,7 +1399,7 @@ where
     ) -> Vec<T> {
         self.enumerate()
             .map(|(index, value)| {
-                dither_with_method(
+                dither_with_linear_rng(
                     value,
                     min,
                     one,
@@ -1274,7 +1412,7 @@ where
     }
 
     #[cfg(feature = "rayon")]
-    fn dither_with_method<M: DitherMethod>(
+    fn dither_with_linear_rng<M: LinearRng>(
         self,
         min: T,
         one: T,
@@ -1286,7 +1424,7 @@ where
         Self: Send,
         Self::Item: Send,
     {
-        dither_iter_with_method(self, min, one, dither_amplitude, method)
+        dither_iter_with_linear_rng(self, min, one, dither_amplitude, method)
     }
 
     /// Apply simple dithering to all values in the iterator.
@@ -1312,7 +1450,7 @@ where
 
     /// Apply simple dithering with a specific method.
     #[cfg(not(feature = "rayon"))]
-    fn simple_dither_with_method<M: DitherMethod>(
+    fn simple_dither_with_linear_rng<M: LinearRng>(
         self,
         one: T,
         method: &M,
@@ -1322,13 +1460,13 @@ where
     {
         self.enumerate()
             .map(|(index, value)| {
-                simple_dither_with_method(value, one, index as u32, method)
+                simple_dither_with_linear_rng(value, one, index as u32, method)
             })
             .collect()
     }
 
     #[cfg(feature = "rayon")]
-    fn simple_dither_with_method<M: DitherMethod>(
+    fn simple_dither_with_linear_rng<M: LinearRng>(
         self,
         one: T,
         method: &M,
@@ -1338,7 +1476,7 @@ where
         Self: Send,
         Self::Item: Send,
     {
-        simple_dither_iter_with_method(self, one, method)
+        simple_dither_iter_with_linear_rng(self, one, method)
     }
 }
 
@@ -1390,7 +1528,7 @@ where
     }
 
     /// Apply dithering with a specific method.
-    fn dither_with_method<M>(
+    fn dither_with_linear_rng<M>(
         self,
         min: T,
         one: T,
@@ -1399,13 +1537,13 @@ where
     ) -> Vec<T>
     where
         T: Send + Sync,
-        M: DitherMethod + Sync,
+        M: LinearRng + Sync,
     {
         use rayon::prelude::*;
 
         self.enumerate()
             .map(|(index, value)| {
-                dither_with_method(
+                dither_with_linear_rng(
                     value,
                     min,
                     one,
@@ -1430,20 +1568,16 @@ where
     }
 
     /// Apply simple dithering with a specific method.
-    fn simple_dither_with_method<M>(
-        self,
-        one: T,
-        method: &M,
-    ) -> Vec<T>
+    fn simple_dither_with_linear_rng<M>(self, one: T, method: &M) -> Vec<T>
     where
         T: Number + CastableFrom<f32> + Send + Sync,
-        M: DitherMethod + Sync,
+        M: LinearRng + Sync,
     {
         use rayon::prelude::*;
 
         self.enumerate()
             .map(|(index, value)| {
-                simple_dither_with_method(value, one, index as u32, method)
+                simple_dither_with_linear_rng(value, one, index as u32, method)
             })
             .collect()
     }
@@ -1457,4 +1591,75 @@ where
     I: rayon::iter::IndexedParallelIterator<Item = T>,
     T: DitherFloat,
 {
+}
+
+/// Position-based random number generation using spatial RNG methods.
+///
+/// This module provides deterministic, position-based random number generation
+/// that is particularly useful for parallel processing where thread execution
+/// order should not affect the results.
+pub mod rng {
+    use crate::SpatialRng;
+
+    /// Generate a position-based random number in [0, 1] range.
+    ///
+    /// This function uses a spatial RNG to generate deterministic
+    /// random numbers based on position. The same (x, y) coordinates with
+    /// the same seed will always produce the same result.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use dithereens::{SpatialHash, rng::spatial_rng};
+    ///
+    /// let random_value = spatial_rng::<SpatialHash>(10, 20, 42); // seed = 42
+    /// assert!(random_value >= 0.0 && random_value <= 1.0);
+    /// ```
+    #[inline(always)]
+    pub fn spatial_rng<T: SpatialRng>(x: u32, y: u32, seed: u32) -> f32 {
+        let method = T::new(seed);
+        // Convert from [-1, 1] to [0, 1]
+        (method.compute(x, y) + 1.0) * 0.5
+    }
+
+    /// Generate a position-based random number in [0, max] range.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use dithereens::{InterleavedGradientNoise, rng::spatial_rng_range};
+    ///
+    /// let random_value =
+    ///     spatial_rng_range::<InterleavedGradientNoise>(10, 20, 42, 100.0);
+    /// assert!(random_value >= 0.0 && random_value <= 100.0);
+    /// ```
+    #[inline(always)]
+    pub fn spatial_rng_range<T: SpatialRng>(
+        x: u32,
+        y: u32,
+        seed: u32,
+        max: f32,
+    ) -> f32 {
+        spatial_rng::<T>(x, y, seed) * max
+    }
+
+    /// Generate a position-based random integer in [0, max) range.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use dithereens::{SpatialHash, rng::spatial_rng_int};
+    ///
+    /// let random_int = spatial_rng_int::<SpatialHash>(10, 20, 42, 6); // dice roll
+    /// assert!(random_int < 6);
+    /// ```
+    #[inline(always)]
+    pub fn spatial_rng_int<T: SpatialRng>(
+        x: u32,
+        y: u32,
+        seed: u32,
+        max: u32,
+    ) -> u32 {
+        (spatial_rng::<T>(x, y, seed) * max as f32) as u32
+    }
 }

@@ -54,8 +54,10 @@ fn test_different_methods_variation() {
     let r2_42 = R2::new(42);
     let r2_43 = R2::new(43);
     for index in 0..10 {
-        let r1 = dither_with_method(0.5_f32, 0.0, 255.0, 0.5, index, &r2_42);
-        let r2 = dither_with_method(0.5_f32, 0.0, 255.0, 0.5, index, &r2_43);
+        let r1 =
+            dither_with_linear_rng(0.5_f32, 0.0, 255.0, 0.5, index, &r2_42);
+        let r2 =
+            dither_with_linear_rng(0.5_f32, 0.0, 255.0, 0.5, index, &r2_43);
         println!(
             "Index {}: seed 42 = {:.2}, seed 43 = {:.2}, diff = {:.2}",
             index,
@@ -70,8 +72,10 @@ fn test_different_methods_variation() {
     let gr_42 = GoldenRatio::new(42);
     let gr_43 = GoldenRatio::new(43);
     for index in 0..10 {
-        let r1 = dither_with_method(0.5_f32, 0.0, 255.0, 0.5, index, &gr_42);
-        let r2 = dither_with_method(0.5_f32, 0.0, 255.0, 0.5, index, &gr_43);
+        let r1 =
+            dither_with_linear_rng(0.5_f32, 0.0, 255.0, 0.5, index, &gr_42);
+        let r2 =
+            dither_with_linear_rng(0.5_f32, 0.0, 255.0, 0.5, index, &gr_43);
         println!(
             "Index {}: seed 42 = {:.2}, seed 43 = {:.2}, diff = {:.2}",
             index,

@@ -105,17 +105,17 @@ mod rayon_tests {
         let hash_result: Vec<f32> = values
             .par_iter()
             .copied()
-            .simple_dither_with_method(255.0, &hash_method);
+            .simple_dither_with_linear_rng(255.0, &hash_method);
 
         let r2_result: Vec<f32> = values
             .par_iter()
             .copied()
-            .simple_dither_with_method(255.0, &r2_method);
+            .simple_dither_with_linear_rng(255.0, &r2_method);
 
         let golden_result: Vec<f32> = values
             .par_iter()
             .copied()
-            .simple_dither_with_method(255.0, &golden_method);
+            .simple_dither_with_linear_rng(255.0, &golden_method);
 
         // All should produce valid results
         for &v in &hash_result {

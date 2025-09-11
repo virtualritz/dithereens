@@ -178,7 +178,7 @@ fn rgb_to_grayscale(r: f32, g: f32, b: f32) -> f32 {
 
 /// Dither to N grayscale levels (e.g., 2 for black and white, 4 for 4 grayscale
 /// levels) This converts to grayscale first, then applies dithering
-fn dither_to_grayscale_levels<M: DitherMethod2D>(
+fn dither_to_grayscale_levels<M: SpatialRng>(
     data: &mut [f32],
     width: usize,
     levels: usize,
@@ -236,7 +236,7 @@ fn dither_to_grayscale_levels<M: DitherMethod2D>(
 }
 
 /// Dither color image to N levels per channel (preserves color)
-fn dither_color_to_levels<M: DitherMethod2D>(
+fn dither_color_to_levels<M: SpatialRng>(
     data: &mut [f32],
     width: usize,
     levels: usize,
