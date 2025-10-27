@@ -17,15 +17,13 @@ fn main() {
     // R2 low-discrepancy sequence
     println!("\n--- R2 Low-Discrepancy Sequence ---");
     let r2 = R2::new(42);
-    let r2_result =
-        simple_dither_iter_with_linear_rng(values.clone(), 255.0, &r2);
+    let r2_result = simple_dither_iter_with(values.clone(), 255.0, &r2);
     println!("Result: {:?}", r2_result);
 
     // Golden Ratio sequence
     println!("\n--- Golden Ratio Sequence ---");
     let golden = GoldenRatio::new(42);
-    let golden_result =
-        simple_dither_iter_with_linear_rng(values.clone(), 255.0, &golden);
+    let golden_result = simple_dither_iter_with(values.clone(), 255.0, &golden);
     println!("Result: {:?}", golden_result);
 
     // Compare methods
@@ -52,8 +50,8 @@ fn main() {
     simple_dither_slice(&mut slice_hash, 255.0, 123);
     let r2_123 = R2::new(123);
     let golden_123 = GoldenRatio::new(123);
-    simple_dither_slice_with_linear_rng(&mut slice_r2, 255.0, &r2_123);
-    simple_dither_slice_with_linear_rng(&mut slice_golden, 255.0, &golden_123);
+    simple_dither_slice_with(&mut slice_r2, 255.0, &r2_123);
+    simple_dither_slice_with(&mut slice_golden, 255.0, &golden_123);
 
     println!("Original: {:?}", values);
     println!("Hash:     {:?}", slice_hash);
@@ -66,7 +64,7 @@ fn main() {
     for (i, &value) in values.iter().enumerate() {
         let dithered_hash = dither(value, 0.0, 255.0, 0.5, i as u32, 999);
         let dithered_r2 =
-            dither_with_linear_rng(value, 0.0, 255.0, 0.5, i as u32, &r2_999);
+            dither_with(value, 0.0, 255.0, 0.5, i as u32, &r2_999);
         println!(
             "Value {}: {:.2} -> Hash: {:.2}, R2: {:.2}",
             i, value, dithered_hash, dithered_r2

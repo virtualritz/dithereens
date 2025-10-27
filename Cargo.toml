@@ -1,6 +1,6 @@
 [package]
 name = "dithereens"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["Moritz Moeller <virtualritz@protonmail.com>"]
 edition = "2024"
 keywords = ["graphics", "dithering", "images"]
@@ -24,12 +24,15 @@ rayon = ["dep:rayon", "dep:smallvec"]
 nightly_f16 = ["dep:common_traits_f16"]
 ## Enables true blue noise dithering using precomputed 256×256×4 table (adds ~5MB to binary size).
 blue_noise = []
+## Enables serialization/deserialization via serde.
+serde = ["dep:serde"]
 
 [dependencies]
 common_traits = { version = "0.12", default-features = false }
 common_traits_f16 = { git = "https://github.com/virtualritz/common_traits.git", package = "common_traits", default-features = false, features = ["nightly_f16"], optional = true }
 libm = { version = "0.2", optional = true }
 rayon = { version = "1", optional = true }
+serde = { version = "1", default-features = false, features = ["derive"], optional = true }
 smallvec = { version = "1", optional = true }
 
 [dev-dependencies]

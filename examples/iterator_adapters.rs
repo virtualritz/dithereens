@@ -91,18 +91,12 @@ fn main() {
     let r2 = R2::new(42);
     let golden = GoldenRatio::new(42);
 
-    let hash_result: Vec<f32> = test
-        .iter()
-        .copied()
-        .simple_dither_with_linear_rng(255.0, &hash);
-    let r2_result: Vec<f32> = test
-        .iter()
-        .copied()
-        .simple_dither_with_linear_rng(255.0, &r2);
-    let golden_result: Vec<f32> = test
-        .iter()
-        .copied()
-        .simple_dither_with_linear_rng(255.0, &golden);
+    let hash_result: Vec<f32> =
+        test.iter().copied().simple_dither_with(255.0, &hash);
+    let r2_result: Vec<f32> =
+        test.iter().copied().simple_dither_with(255.0, &r2);
+    let golden_result: Vec<f32> =
+        test.iter().copied().simple_dither_with(255.0, &golden);
 
     println!("Hash:   {:?}", hash_result);
     println!("R2:     {:?}", r2_result);

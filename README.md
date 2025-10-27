@@ -71,7 +71,7 @@ patterns, which can produce more visually pleasing results for images.
 ### Using Custom Methods
 
 ```rust
-use dithereens::{GoldenRatio, Hash, R2, simple_dither_with_linear_rng};
+use dithereens::{GoldenRatio, Hash, R2, simple_dither_with};
 
 let value = 0.5f32;
 let seed = 42;
@@ -81,12 +81,9 @@ let hash_method = Hash::new(seed);
 let r2_method = R2::new(seed);
 let golden_method = GoldenRatio::new(seed);
 
-let dithered_hash =
-    simple_dither_with_linear_rng(value, 255.0, 0, &hash_method);
-let dithered_r2 =
-    simple_dither_with_linear_rng(value, 255.0, 0, &r2_method);
-let dithered_golden =
-    simple_dither_with_linear_rng(value, 255.0, 0, &golden_method);
+let dithered_hash = simple_dither_with(value, 255.0, 0, &hash_method);
+let dithered_r2 = simple_dither_with(value, 255.0, 0, &r2_method);
+let dithered_golden = simple_dither_with(value, 255.0, 0, &golden_method);
 ```
 
 ### Image Dithering with 1D Methods
@@ -132,7 +129,7 @@ Benchmarks with 10,000 values:
 
 - **Single values**: [`dither()`](https://docs.rs/dithereens/latest/dithereens/fn.dither.html), [`simple_dither()`](https://docs.rs/dithereens/latest/dithereens/fn.simple_dither.html).
 - **In-place slice operations**: [`dither_slice()`](https://docs.rs/dithereens/latest/dithereens/fn.dither_slice.html),
-  [`simple_dither_slice()`] (~5.6x faster than iterator methods).
+  [`simple_dither_slice()`](https://docs.rs/dithereens/latest/dithereens/fn.simple_dither_slice.html) (>5× faster than iterator methods).
 - **Iterator chains**: [`dither_iter()`](https://docs.rs/dithereens/latest/dithereens/fn.dither_iter.html), [`simple_dither_iter()`](https://docs.rs/dithereens/latest/dithereens/fn.simple_dither_iter.html), or
   [`DitherIteratorExt`](https://docs.rs/dithereens/latest/dithereens/trait.DitherIteratorExt.html) adapters (allocation overhead).
 
@@ -185,8 +182,9 @@ dithereens = { version = "0.3", features = ["blue_noise"] }
 ```
 
 This adds the `BlueNoise` struct which provides true blue noise dithering
-using a precomputed 256×256×4 table. Note: This increases binary size by
-~5MB.
+using a precomputed 256×256×4 table.
+
+**This increases binary size by ~5M!**
 
 ```rust
 #[cfg(feature = "blue_noise")]
@@ -198,6 +196,75 @@ let mut pixels: Vec<f32> = vec![0.5; width * width];
 let blue_noise = BlueNoise::new(42);
 simple_dither_slice_2d(&mut pixels, width, 255.0, &blue_noise);
 ```
+
+### Float-to-Float Dithering
+
+Dither when converting between floating-point types of different
+precisions to reduce quantization artifacts like banding in smooth
+gradients.
+
+#### Supported Conversions
+
+- **f64 → f32**: Always available.
+- **f32 → f16**: Requires `nightly_f16` feature and nightly Rust.
+- **f64 → f16**: Requires `nightly_f16` feature and nightly Rust.
+
+#### Use Cases
+
+Float-to-float dithering is particularly useful for:
+- Converting HDR sky gradients from f32 to f16.
+- Reducing banding in smooth color transitions.
+- Maintaining visual quality when downsampling precision.
+- Processing high-precision data for display or storage.
+
+#### Example: HDR Gradient Conversion
+
+```rust
+use dithereens::dither_float_slice;
+
+// Smooth gradient in f64.
+let gradient: Vec<f64> = (0..100).map(|i| 1.0 + i as f64 * 0.001).collect();
+
+// Convert to f32 with dithering to preserve smoothness.
+let dithered: Vec<f32> = dither_float_slice(&gradient, 42);
+
+// Without dithering (simple cast) would show more banding.
+```
+
+#### Example: Image Conversion with 2D Methods
+
+```rust
+use dithereens::{InterleavedGradientNoise, dither_float_slice_2d};
+
+let width = 256;
+let image_f32: Vec<f32> = vec![1.5; width * width];
+
+// Use 2D dithering for spatially-aware noise patterns.
+let method = InterleavedGradientNoise::new(42);
+let image_f16: Vec<f16> = dither_float_slice_2d(&image_f32, width, &method);
+```
+
+#### Available Functions
+
+**Single values:**
+- [`dither_float()`](https://docs.rs/dithereens/latest/dithereens/fn.dither_float.html) -- Default hash method.
+- [`dither_float_with()`](https://docs.rs/dithereens/latest/dithereens/fn.dither_float_with.html) -- Custom 1D method.
+- [`dither_float_2d()`](https://docs.rs/dithereens/latest/dithereens/fn.dither_float_2d.html) -- Custom 2D method.
+
+**Slices:**
+- [`dither_float_slice()`](https://docs.rs/dithereens/latest/dithereens/fn.dither_float_slice.html) -- 1D processing.
+- [`dither_float_slice_with()`](https://docs.rs/dithereens/latest/dithereens/fn.dither_float_slice_with.html) -- 1D with custom method.
+- [`dither_float_slice_2d()`](https://docs.rs/dithereens/latest/dithereens/fn.dither_float_slice_2d.html) -- 2D processing.
+
+**Iterators:**
+- [`dither_float_iter()`](https://docs.rs/dithereens/latest/dithereens/fn.dither_float_iter.html) -- From iterator.
+- [`dither_float_iter_with()`](https://docs.rs/dithereens/latest/dithereens/fn.dither_float_iter_with.html) -- With custom method.
+
+**Trait methods:**
+All [`LinearRng`](https://docs.rs/dithereens/latest/dithereens/trait.LinearRng.html) and [`SpatialRng`](https://docs.rs/dithereens/latest/dithereens/trait.SpatialRng.html) implementations provide
+`dither_float*` methods.
+
+See `examples/float_precision_dither.rs` for complete examples.
 
 <!-- cargo-rdme end -->
 

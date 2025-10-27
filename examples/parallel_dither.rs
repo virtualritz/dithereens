@@ -53,17 +53,17 @@ fn main() {
     let hash_result: Vec<f32> = test_values
         .par_iter()
         .copied()
-        .simple_dither_with_linear_rng(255.0, &hash);
+        .simple_dither_with(255.0, &hash);
 
     let r2_result: Vec<f32> = test_values
         .par_iter()
         .copied()
-        .simple_dither_with_linear_rng(255.0, &r2);
+        .simple_dither_with(255.0, &r2);
 
     let golden_result: Vec<f32> = test_values
         .par_iter()
         .copied()
-        .simple_dither_with_linear_rng(255.0, &golden);
+        .simple_dither_with(255.0, &golden);
 
     println!("Hash method (first 5):   {:?}", &hash_result[..5]);
     println!("R2 method (first 5):     {:?}", &r2_result[..5]);

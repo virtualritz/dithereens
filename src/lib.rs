@@ -64,7 +64,7 @@
 //! ## Using Custom Methods
 //!
 //! ```rust
-//! use dithereens::{GoldenRatio, Hash, R2, simple_dither_with_linear_rng};
+//! use dithereens::{GoldenRatio, Hash, R2, simple_dither_with};
 //!
 //! let value = 0.5f32;
 //! let seed = 42;
@@ -74,12 +74,9 @@
 //! let r2_method = R2::new(seed);
 //! let golden_method = GoldenRatio::new(seed);
 //!
-//! let dithered_hash =
-//!     simple_dither_with_linear_rng(value, 255.0, 0, &hash_method);
-//! let dithered_r2 =
-//!     simple_dither_with_linear_rng(value, 255.0, 0, &r2_method);
-//! let dithered_golden =
-//!     simple_dither_with_linear_rng(value, 255.0, 0, &golden_method);
+//! let dithered_hash = simple_dither_with(value, 255.0, 0, &hash_method);
+//! let dithered_r2 = simple_dither_with(value, 255.0, 0, &r2_method);
+//! let dithered_golden = simple_dither_with(value, 255.0, 0, &golden_method);
 //! ```
 //!
 //! ## Image Dithering with 1D Methods
@@ -125,7 +122,7 @@
 //!
 //! - **Single values**: [`dither()`], [`simple_dither()`].
 //! - **In-place slice operations**: [`dither_slice()`],
-//!   [`simple_dither_slice()`] (~5.6x faster than iterator methods).
+//!   [`simple_dither_slice()`] (>5× faster than iterator methods).
 //! - **Iterator chains**: [`dither_iter()`], [`simple_dither_iter()`], or
 //!   [`DitherIteratorExt`] adapters (allocation overhead).
 //!
@@ -178,8 +175,9 @@
 //! ```
 //!
 //! This adds the `BlueNoise` struct which provides true blue noise dithering
-//! using a precomputed 256×256×4 table. Note: This increases binary size by
-//! ~5MB.
+//! using a precomputed 256×256×4 table.
+//!
+//! **This increases binary size by ~5M!**
 //!
 //! ```rust
 //! #[cfg(feature = "blue_noise")]
@@ -191,6 +189,78 @@
 //! let blue_noise = BlueNoise::new(42);
 //! simple_dither_slice_2d(&mut pixels, width, 255.0, &blue_noise);
 //! ```
+//!
+//! ## Float-to-Float Dithering
+//!
+//! Dither when converting between floating-point types of different
+//! precisions to reduce quantization artifacts like banding in smooth
+//! gradients.
+//!
+//! ### Supported Conversions
+//!
+//! - **f64 → f32**: Always available.
+//! - **f32 → f16**: Requires `nightly_f16` feature and nightly Rust.
+//! - **f64 → f16**: Requires `nightly_f16` feature and nightly Rust.
+//!
+//! ### Use Cases
+//!
+//! Float-to-float dithering is particularly useful for:
+//! - Converting HDR sky gradients from f32 to f16.
+//! - Reducing banding in smooth color transitions.
+//! - Maintaining visual quality when downsampling precision.
+//! - Processing high-precision data for display or storage.
+//!
+//! ### Example: HDR Gradient Conversion
+//!
+//! ```rust
+//! use dithereens::dither_float_slice;
+//!
+//! // Smooth gradient in f64.
+//! let gradient: Vec<f64> = (0..100).map(|i| 1.0 + i as f64 * 0.001).collect();
+//!
+//! // Convert to f32 with dithering to preserve smoothness.
+//! let dithered: Vec<f32> = dither_float_slice(&gradient, 42);
+//!
+//! // Without dithering (simple cast) would show more banding.
+//! ```
+//!
+//! ### Example: Image Conversion with 2D Methods
+//!
+//! ```rust
+//! # #[cfg(feature = "nightly_f16")]
+//! # {
+//! use dithereens::{InterleavedGradientNoise, dither_float_slice_2d};
+//!
+//! let width = 256;
+//! let image_f32: Vec<f32> = vec![1.5; width * width];
+//!
+//! // Use 2D dithering for spatially-aware noise patterns.
+//! let method = InterleavedGradientNoise::new(42);
+//! let image_f16: Vec<f16> = dither_float_slice_2d(&image_f32, width, &method);
+//! # }
+//! ```
+//!
+//! ### Available Functions
+//!
+//! **Single values:**
+//! - [`dither_float()`] -- Default hash method.
+//! - [`dither_float_with()`] -- Custom 1D method.
+//! - [`dither_float_2d()`] -- Custom 2D method.
+//!
+//! **Slices:**
+//! - [`dither_float_slice()`] -- 1D processing.
+//! - [`dither_float_slice_with()`] -- 1D with custom method.
+//! - [`dither_float_slice_2d()`] -- 2D processing.
+//!
+//! **Iterators:**
+//! - [`dither_float_iter()`] -- From iterator.
+//! - [`dither_float_iter_with()`] -- With custom method.
+//!
+//! **Trait methods:**
+//! All [`LinearRng`] and [`SpatialRng`] implementations provide
+//! `dither_float*` methods.
+//!
+//! See `examples/float_precision_dither.rs` for complete examples.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(feature = "nightly_f16", feature(f16))]
@@ -228,8 +298,8 @@ use core::{
 ///
 /// # Available Implementations
 ///
-/// - [`Hash`] -- Fast hash-based RNG. Good general-purpose quality with uniform
-///   distribution.
+/// - [`struct@Hash`] -- Fast hash-based RNG. Good general-purpose quality with
+///   uniform distribution.
 /// - [`R2`] -- Low-discrepancy sequence using the R2 recurrence. Better spatial
 ///   distribution than random.
 /// - [`GoldenRatio`] -- Golden ratio sequence. Optimal 1D coverage with minimal
@@ -256,7 +326,7 @@ pub trait LinearRng: Sized + Send + Sync {
         T: DitherFloat,
         Self: Sized,
     {
-        dither_with_linear_rng(value, min, one, dither_amplitude, index, self)
+        dither_with(value, min, one, dither_amplitude, index, self)
     }
 
     /// Simple dither for a single value.
@@ -266,7 +336,7 @@ pub trait LinearRng: Sized + Send + Sync {
         T: DitherFloat + Number + CastableFrom<f32>,
         Self: Sized,
     {
-        simple_dither_with_linear_rng(value, one, index, self)
+        simple_dither_with(value, one, index, self)
     }
 
     /// Dither values in a slice.
@@ -281,7 +351,7 @@ pub trait LinearRng: Sized + Send + Sync {
         T: DitherFloat,
         Self: Sized,
     {
-        dither_slice_with_linear_rng(values, min, one, dither_amplitude, self)
+        dither_slice_with(values, min, one, dither_amplitude, self)
     }
 
     /// Dither values in a slice (parallel version).
@@ -296,7 +366,7 @@ pub trait LinearRng: Sized + Send + Sync {
         T: DitherFloat + Send + Sync,
         Self: Sized,
     {
-        dither_slice_with_linear_rng(values, min, one, dither_amplitude, self)
+        dither_slice_with(values, min, one, dither_amplitude, self)
     }
 
     /// Simple dither for values in a slice.
@@ -306,7 +376,7 @@ pub trait LinearRng: Sized + Send + Sync {
         T: DitherFloat + Number + CastableFrom<f32>,
         Self: Sized,
     {
-        simple_dither_slice_with_linear_rng(values, one, self)
+        simple_dither_slice_with(values, one, self)
     }
 
     /// Simple dither for values in a slice (parallel version).
@@ -316,7 +386,7 @@ pub trait LinearRng: Sized + Send + Sync {
         T: DitherFloat + Number + CastableFrom<f32> + Send + Sync,
         Self: Sized,
     {
-        simple_dither_slice_with_linear_rng(values, one, self)
+        simple_dither_slice_with(values, one, self)
     }
 
     /// Dither values from an iterator.
@@ -333,7 +403,7 @@ pub trait LinearRng: Sized + Send + Sync {
         I: IntoIterator<Item = T>,
         Self: Sized,
     {
-        dither_iter_with_linear_rng(values, min, one, dither_amplitude, self)
+        dither_iter_with(values, min, one, dither_amplitude, self)
     }
 
     /// Dither values from an iterator (parallel version).
@@ -351,7 +421,7 @@ pub trait LinearRng: Sized + Send + Sync {
         I::IntoIter: Send,
         Self: Sized,
     {
-        dither_iter_with_linear_rng(values, min, one, dither_amplitude, self)
+        dither_iter_with(values, min, one, dither_amplitude, self)
     }
 
     /// Simple dither for values from an iterator.
@@ -362,7 +432,7 @@ pub trait LinearRng: Sized + Send + Sync {
         I: IntoIterator<Item = T>,
         Self: Sized,
     {
-        simple_dither_iter_with_linear_rng(values, one, self)
+        simple_dither_iter_with(values, one, self)
     }
 
     /// Simple dither for values from an iterator (parallel version).
@@ -374,7 +444,77 @@ pub trait LinearRng: Sized + Send + Sync {
         I::IntoIter: Send,
         Self: Sized,
     {
-        simple_dither_iter_with_linear_rng(values, one, self)
+        simple_dither_iter_with(values, one, self)
+    }
+
+    /// Dither a float value when converting to lower precision.
+    #[inline]
+    fn dither_float<Src, Dest>(&self, value: Src, index: u32) -> Dest
+    where
+        Src: DitherFloatConversion<Dest> + DitherFloat + CastableFrom<f64>,
+        Self: Sized,
+    {
+        dither_float_with(value, index, self)
+    }
+
+    /// Dither float values in a slice when converting to lower precision.
+    #[cfg(not(feature = "rayon"))]
+    fn dither_float_slice<Src, Dest>(&self, values: &[Src]) -> Vec<Dest>
+    where
+        Src: DitherFloatConversion<Dest>
+            + DitherFloat
+            + CastableFrom<f64>
+            + Copy,
+        Self: Sized,
+    {
+        dither_float_slice_with(values, self)
+    }
+
+    /// Dither float values in a slice when converting to lower precision
+    /// (parallel version).
+    #[cfg(feature = "rayon")]
+    fn dither_float_slice<Src, Dest>(&self, values: &[Src]) -> Vec<Dest>
+    where
+        Src: DitherFloatConversion<Dest>
+            + DitherFloat
+            + CastableFrom<f64>
+            + Copy
+            + Send
+            + Sync,
+        Dest: Send,
+        Self: Sized,
+    {
+        dither_float_slice_with(values, self)
+    }
+
+    /// Dither float values from an iterator when converting to lower
+    /// precision.
+    #[cfg(not(feature = "rayon"))]
+    fn dither_float_iter<Src, Dest, I>(&self, values: I) -> Vec<Dest>
+    where
+        Src: DitherFloatConversion<Dest> + DitherFloat + CastableFrom<f64>,
+        I: IntoIterator<Item = Src>,
+        Self: Sized,
+    {
+        dither_float_iter_with(values, self)
+    }
+
+    /// Dither float values from an iterator when converting to lower precision
+    /// (parallel version).
+    #[cfg(feature = "rayon")]
+    fn dither_float_iter<Src, Dest, I>(&self, values: I) -> Vec<Dest>
+    where
+        Src: DitherFloatConversion<Dest>
+            + DitherFloat
+            + CastableFrom<f64>
+            + Send
+            + Sync,
+        Dest: Send,
+        I: IntoIterator<Item = Src>,
+        I::IntoIter: Send,
+        Self: Sized,
+    {
+        dither_float_iter_with(values, self)
     }
 }
 
@@ -489,6 +629,56 @@ pub trait SpatialRng: Sized + Send + Sync {
     {
         simple_dither_slice_2d(values, width, one, self)
     }
+
+    /// Dither a float value when converting to lower precision using 2D
+    /// coordinates.
+    #[inline]
+    fn dither_float_2d<Src, Dest>(&self, value: Src, x: u32, y: u32) -> Dest
+    where
+        Src: DitherFloatConversion<Dest> + DitherFloat + CastableFrom<f64>,
+        Self: Sized,
+    {
+        dither_float_2d(value, x, y, self)
+    }
+
+    /// Dither float values in a 2D image slice when converting to lower
+    /// precision.
+    #[cfg(not(feature = "rayon"))]
+    fn dither_float_slice_2d<Src, Dest>(
+        &self,
+        values: &[Src],
+        width: usize,
+    ) -> Vec<Dest>
+    where
+        Src: DitherFloatConversion<Dest>
+            + DitherFloat
+            + CastableFrom<f64>
+            + Copy,
+        Self: Sized,
+    {
+        dither_float_slice_2d(values, width, self)
+    }
+
+    /// Dither float values in a 2D image slice when converting to lower
+    /// precision (parallel version).
+    #[cfg(feature = "rayon")]
+    fn dither_float_slice_2d<Src, Dest>(
+        &self,
+        values: &[Src],
+        width: usize,
+    ) -> Vec<Dest>
+    where
+        Src: DitherFloatConversion<Dest>
+            + DitherFloat
+            + CastableFrom<f64>
+            + Copy
+            + Send
+            + Sync,
+        Dest: Send,
+        Self: Sized,
+    {
+        dither_float_slice_2d(values, width, self)
+    }
 }
 
 /// Hash-based dithering (default method).
@@ -496,6 +686,8 @@ pub trait SpatialRng: Sized + Send + Sync {
 /// Fast general-purpose RNG with uniform distribution. Uses integer
 /// hash mixing for speed. Good choice when you need consistent
 /// performance across all index values.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Hash {
     seed: u32,
 }
@@ -533,14 +725,25 @@ impl LinearRng for Hash {
 /// Provides better spatial coverage than random sequences. Based on
 /// the generalized golden ratio (1.32471...). Produces visually
 /// pleasing patterns with minimal clustering or gaps.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct R2 {
-    seed_offset: f32,
+    seed: f32,
+}
+
+impl Eq for R2 {}
+
+impl core::hash::Hash for R2 {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        // Hash the bit representation of the float.
+        self.seed.to_bits().hash(state);
+    }
 }
 
 impl R2 {
     pub fn new(seed: u32) -> Self {
         Self {
-            seed_offset: seed as f32 * 0.618_034,
+            seed: seed as f32 * 0.618_034,
         }
     }
 }
@@ -548,7 +751,7 @@ impl R2 {
 impl LinearRng for R2 {
     fn new(seed: u32) -> Self {
         Self {
-            seed_offset: seed as f32 * 0.618_034,
+            seed: seed as f32 * 0.618_034,
         }
     }
 
@@ -558,7 +761,7 @@ impl LinearRng for R2 {
         const ALPHA: f32 = 0.754_877_7; // 1/φ₂ where φ₂ = 1.32471795724474602596
 
         // Add seed as initial offset.
-        let value = (self.seed_offset + ALPHA * index as f32).fract();
+        let value = (self.seed + ALPHA * index as f32).fract();
 
         // Convert from [0, 1] to [-1, 1]
         value * 2.0 - 1.0
@@ -570,14 +773,25 @@ impl LinearRng for R2 {
 /// Classic low-discrepancy sequence using the golden ratio (1.618...).
 /// Optimal for 1D coverage with the most uniform distribution possible.
 /// Excellent for gradient-like data or smooth transitions.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct GoldenRatio {
-    seed_offset: f32,
+    seed: f32,
+}
+
+impl Eq for GoldenRatio {}
+
+impl core::hash::Hash for GoldenRatio {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        // Hash the bit representation of the float.
+        self.seed.to_bits().hash(state);
+    }
 }
 
 impl GoldenRatio {
     pub fn new(seed: u32) -> Self {
         Self {
-            seed_offset: seed as f32 * 0.381_966_02,
+            seed: seed as f32 * 0.381_966_02,
         }
     }
 }
@@ -585,7 +799,7 @@ impl GoldenRatio {
 impl LinearRng for GoldenRatio {
     fn new(seed: u32) -> Self {
         Self {
-            seed_offset: seed as f32 * 0.618_034,
+            seed: seed as f32 * 0.618_034,
         }
     }
 
@@ -594,7 +808,7 @@ impl LinearRng for GoldenRatio {
         const INV_GOLDEN: f32 = 0.618_034; // 1/φ where φ = 1.618033988749
 
         // Golden ratio sequence with seed offset.
-        let value = (self.seed_offset + INV_GOLDEN * index as f32).fract();
+        let value = (self.seed + INV_GOLDEN * index as f32).fract();
 
         // Convert from [0, 1] to [-1, 1]
         value * 2.0 - 1.0
@@ -606,6 +820,8 @@ impl LinearRng for GoldenRatio {
 /// Fast algorithm from Jorge Jimenez's presentation at SIGGRAPH 2014.
 /// Widely used in real-time graphics for its speed and quality balance.
 /// Creates smooth gradient-like patterns with good visual properties.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct InterleavedGradientNoise {
     x_offset: u32,
     y_offset: u32,
@@ -650,6 +866,8 @@ impl SpatialRng for InterleavedGradientNoise {
 /// Uses coordinate hashing to create spatially decorrelated noise.
 /// Provides blue noise-like characteristics without lookup tables.
 /// Good balance between quality and memory efficiency.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SpatialHash {
     seed: u32,
 }
@@ -688,6 +906,8 @@ impl SpatialRng for SpatialHash {
 /// [`SpatialHash`] to approximate true blue noise characteristics.
 /// Better quality than either method alone, without the memory cost
 /// of real blue noise tables.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BlueNoiseApprox {
     ign: InterleavedGradientNoise,
     spatial: SpatialHash,
@@ -728,6 +948,8 @@ impl SpatialRng for BlueNoiseApprox {
 /// frequency content with no low-frequency clustering. Results in
 /// the most visually pleasing dithering patterns. Adds ~5MB to binary size.
 #[cfg(feature = "blue_noise")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BlueNoise {
     x_offset: u32,
     y_offset: u32,
@@ -857,6 +1079,156 @@ impl DitherFloat for f16 {
     }
 }
 
+/// Trait for dithered float-to-float precision conversions.
+///
+/// This trait enables dithering when converting between floating-point types
+/// of different precisions to reduce quantization artifacts like banding in
+/// smooth gradients.
+///
+/// # Example
+///
+/// ```rust
+/// # #[cfg(feature = "nightly_f16")]
+/// # {
+/// use dithereens::dither_float;
+///
+/// let value: f32 = 1.234567;
+/// let dithered: f16 = dither_float(value, 0, 42);
+/// # }
+/// ```
+pub trait DitherFloatConversion<Dest>: Sized {
+    /// Compute the ULP (Unit in the Last Place) for the destination type at
+    /// this value's magnitude.
+    ///
+    /// The ULP represents the quantization step size -- the spacing between
+    /// representable values at the current magnitude.
+    fn compute_target_ulp(self) -> Self;
+
+    /// Cast to the destination type.
+    fn cast_to_dest(self) -> Dest;
+}
+
+/// Implementation for f32 to f16 conversion (requires `nightly_f16` feature).
+///
+/// f16 has 10 mantissa bits vs f32's 23 bits, losing 13 bits of precision.
+#[cfg(feature = "nightly_f16")]
+impl DitherFloatConversion<f16> for f32 {
+    fn compute_target_ulp(self) -> Self {
+        // Handle special cases.
+        if !self.is_finite() {
+            return 1.0; // Doesn't matter, won't be used.
+        }
+
+        let abs_val = self.abs();
+
+        // f16 range is approximately ±65504.
+        // Values outside this range will become infinity.
+        const F16_MAX: f32 = 65504.0;
+        if abs_val >= F16_MAX {
+            return 1.0; // Will saturate to infinity, dithering not helpful.
+        }
+
+        // f16 subnormals have fixed ULP.
+        const F16_MIN_NORMAL: f32 = 6.103515625e-5; // 2^-14
+        if abs_val < F16_MIN_NORMAL {
+            // Subnormal range has fixed ULP of 2^-24.
+            return 5.960464477539063e-8; // 2^-24
+        }
+
+        // Normal range: extract exponent and compute ULP.
+        // f16 loses 13 mantissa bits compared to f32.
+        let bits = self.to_bits();
+        let exponent = ((bits >> 23) & 0xFF) as i32 - 127;
+
+        // ULP for f16 at this exponent = 2^(exponent - 10)
+        // (f16 has 10 mantissa bits)
+        2.0_f32.powi(exponent - 10)
+    }
+
+    #[inline(always)]
+    fn cast_to_dest(self) -> f16 {
+        self as f16
+    }
+}
+
+/// Implementation for f64 to f16 conversion (requires `nightly_f16` feature).
+///
+/// f16 has 10 mantissa bits vs f64's 52 bits, losing 42 bits of precision.
+#[cfg(feature = "nightly_f16")]
+impl DitherFloatConversion<f16> for f64 {
+    fn compute_target_ulp(self) -> Self {
+        // Handle special cases.
+        if !self.is_finite() {
+            return 1.0;
+        }
+
+        let abs_val = self.abs();
+
+        // f16 range is approximately ±65504.
+        const F16_MAX: f64 = 65504.0;
+        if abs_val >= F16_MAX {
+            return 1.0;
+        }
+
+        // f16 subnormals have fixed ULP.
+        const F16_MIN_NORMAL: f64 = 6.103515625e-5; // 2^-14
+        if abs_val < F16_MIN_NORMAL {
+            return 5.960464477539063e-8; // 2^-24
+        }
+
+        // Normal range: extract exponent and compute ULP.
+        let bits = self.to_bits();
+        let exponent = ((bits >> 52) & 0x7FF) as i32 - 1023;
+
+        // ULP for f16 at this exponent = 2^(exponent - 10)
+        2.0_f64.powi(exponent - 10)
+    }
+
+    #[inline(always)]
+    fn cast_to_dest(self) -> f16 {
+        self as f16
+    }
+}
+
+/// Implementation for f64 to f32 conversion.
+///
+/// f32 has 23 mantissa bits vs f64's 52 bits, losing 29 bits of precision.
+impl DitherFloatConversion<f32> for f64 {
+    fn compute_target_ulp(self) -> Self {
+        // Handle special cases.
+        if !self.is_finite() {
+            return 1.0;
+        }
+
+        let abs_val = self.abs();
+
+        // f32 range is approximately ±3.4e38.
+        const F32_MAX: f64 = 3.4028234663852886e38;
+        if abs_val >= F32_MAX {
+            return 1.0;
+        }
+
+        // f32 subnormals have fixed ULP.
+        const F32_MIN_NORMAL: f64 = 1.1754943508222875e-38; // 2^-126
+        if abs_val < F32_MIN_NORMAL {
+            return 1.401298464324817e-45; // 2^-149
+        }
+
+        // Normal range: extract exponent and compute ULP.
+        let bits = self.to_bits();
+        let exponent = ((bits >> 52) & 0x7FF) as i32 - 1023;
+
+        // ULP for f32 at this exponent = 2^(exponent - 23)
+        // (f32 has 23 mantissa bits)
+        2.0_f64.powi(exponent - 23)
+    }
+
+    #[inline(always)]
+    fn cast_to_dest(self) -> f32 {
+        self as f32
+    }
+}
+
 // Note: No longer can have a static default hash since it needs a seed
 
 /// Dither a value using the default hash method (backward compatible).
@@ -873,12 +1245,12 @@ where
     T: DitherFloat,
 {
     let method = Hash::new(seed);
-    dither_with_linear_rng(value, min, one, dither_amplitude, index, &method)
+    dither_with(value, min, one, dither_amplitude, index, &method)
 }
 
 /// Dither a value using a specific method.
 #[inline]
-pub fn dither_with_linear_rng<T, M: LinearRng>(
+pub fn dither_with<T, M: LinearRng>(
     value: T,
     min: T,
     one: T,
@@ -905,12 +1277,12 @@ where
     T: DitherFloat + Number + CastableFrom<f32>,
 {
     let method = Hash::new(seed);
-    simple_dither_with_linear_rng(value, one, index, &method)
+    simple_dither_with(value, one, index, &method)
 }
 
 /// Simple dither with specific method.
 #[inline]
-pub fn simple_dither_with_linear_rng<T, M: LinearRng>(
+pub fn simple_dither_with<T, M: LinearRng>(
     value: T,
     one: T,
     index: u32,
@@ -919,15 +1291,8 @@ pub fn simple_dither_with_linear_rng<T, M: LinearRng>(
 where
     T: DitherFloat + Number + CastableFrom<f32>,
 {
-    dither_with_linear_rng(
-        value,
-        T::ZERO,
-        one,
-        T::cast_from(0.5_f32),
-        index,
-        method,
-    )
-    .clamp(T::ZERO, one)
+    dither_with(value, T::ZERO, one, T::cast_from(0.5_f32), index, method)
+        .clamp(T::ZERO, one)
 }
 
 /// Dither a value using 2D coordinates.
@@ -969,6 +1334,103 @@ where
         .clamp(T::ZERO, one)
 }
 
+/// Dither a float value when converting to lower precision using default hash
+/// method.
+///
+/// This reduces quantization artifacts like banding in smooth gradients when
+/// converting between floating-point types (e.g., f32 to f16, f64 to f32).
+///
+/// # Example
+///
+/// ```rust
+/// # #[cfg(feature = "nightly_f16")]
+/// # {
+/// use dithereens::dither_float;
+///
+/// let value: f32 = 1.234567;
+/// let result: f16 = dither_float(value, 0, 42);
+/// # }
+/// ```
+///
+/// ```rust
+/// use dithereens::dither_float;
+///
+/// let value: f64 = 1.234567890123456;
+/// let result: f32 = dither_float(value, 0, 42);
+/// ```
+#[inline]
+pub fn dither_float<Src, Dest>(value: Src, index: u32, seed: u32) -> Dest
+where
+    Src: DitherFloatConversion<Dest> + DitherFloat + CastableFrom<f64>,
+{
+    let method = Hash::new(seed);
+    dither_float_with(value, index, &method)
+}
+
+/// Dither a float value when converting to lower precision using a specific
+/// linear RNG method.
+///
+/// # Example
+///
+/// ```rust
+/// # #[cfg(feature = "nightly_f16")]
+/// # {
+/// use dithereens::{R2, dither_float_with};
+///
+/// let value: f32 = 1.234567;
+/// let method = R2::new(42);
+/// let result: f16 = dither_float_with(value, 0, &method);
+/// # }
+/// ```
+#[inline]
+pub fn dither_float_with<Src, Dest, M: LinearRng>(
+    value: Src,
+    index: u32,
+    method: &M,
+) -> Dest
+where
+    Src: DitherFloatConversion<Dest> + DitherFloat + CastableFrom<f64>,
+{
+    let ulp = value.compute_target_ulp();
+    let dither_noise = Src::cast_from(method.compute(index) as f64);
+    let dithered = value + dither_noise * ulp * Src::cast_from(0.5);
+    dithered.cast_to_dest()
+}
+
+/// Dither a float value when converting to lower precision using 2D spatial
+/// RNG method.
+///
+/// This is ideal for images and textures where spatial coordinates provide
+/// better dithering patterns.
+///
+/// # Example
+///
+/// ```rust
+/// # #[cfg(feature = "nightly_f16")]
+/// # {
+/// use dithereens::{InterleavedGradientNoise, dither_float_2d};
+///
+/// let value: f32 = 1.234567;
+/// let method = InterleavedGradientNoise::new(42);
+/// let result: f16 = dither_float_2d(value, 10, 20, &method);
+/// # }
+/// ```
+#[inline]
+pub fn dither_float_2d<Src, Dest, M: SpatialRng>(
+    value: Src,
+    x: u32,
+    y: u32,
+    method: &M,
+) -> Dest
+where
+    Src: DitherFloatConversion<Dest> + DitherFloat + CastableFrom<f64>,
+{
+    let ulp = value.compute_target_ulp();
+    let dither_noise = Src::cast_from(method.compute(x, y) as f64);
+    let dithered = value + dither_noise * ulp * Src::cast_from(0.5);
+    dithered.cast_to_dest()
+}
+
 /// Dither values in a slice using default hash method.
 #[cfg(not(feature = "rayon"))]
 pub fn dither_slice<T>(
@@ -981,7 +1443,7 @@ pub fn dither_slice<T>(
     T: DitherFloat,
 {
     let method = Hash::new(seed);
-    dither_slice_with_linear_rng(values, min, one, dither_amplitude, &method)
+    dither_slice_with(values, min, one, dither_amplitude, &method)
 }
 
 #[cfg(feature = "rayon")]
@@ -995,12 +1457,12 @@ pub fn dither_slice<T>(
     T: DitherFloat + Send + Sync,
 {
     let method = Hash::new(seed);
-    dither_slice_with_linear_rng(values, min, one, dither_amplitude, &method)
+    dither_slice_with(values, min, one, dither_amplitude, &method)
 }
 
 /// Dither values in a slice using specific method.
 #[cfg(not(feature = "rayon"))]
-pub fn dither_slice_with_linear_rng<T, M: LinearRng>(
+pub fn dither_slice_with<T, M: LinearRng>(
     values: &mut [T],
     min: T,
     one: T,
@@ -1010,7 +1472,7 @@ pub fn dither_slice_with_linear_rng<T, M: LinearRng>(
     T: DitherFloat,
 {
     for (index, value) in values.iter_mut().enumerate() {
-        *value = dither_with_linear_rng(
+        *value = dither_with(
             *value,
             min,
             one,
@@ -1022,7 +1484,7 @@ pub fn dither_slice_with_linear_rng<T, M: LinearRng>(
 }
 
 #[cfg(feature = "rayon")]
-pub fn dither_slice_with_linear_rng<T, M: LinearRng>(
+pub fn dither_slice_with<T, M: LinearRng>(
     values: &mut [T],
     min: T,
     one: T,
@@ -1037,7 +1499,7 @@ pub fn dither_slice_with_linear_rng<T, M: LinearRng>(
         .par_iter_mut()
         .enumerate()
         .for_each(|(index, value)| {
-            *value = dither_with_linear_rng(
+            *value = dither_with(
                 *value,
                 min,
                 one,
@@ -1098,7 +1560,7 @@ where
     T: DitherFloat + Number + CastableFrom<f32>,
 {
     let method = Hash::new(seed);
-    simple_dither_slice_with_linear_rng(values, one, &method)
+    simple_dither_slice_with(values, one, &method)
 }
 
 #[cfg(feature = "rayon")]
@@ -1107,12 +1569,12 @@ where
     T: DitherFloat + Number + CastableFrom<f32> + Send + Sync,
 {
     let method = Hash::new(seed);
-    simple_dither_slice_with_linear_rng(values, one, &method)
+    simple_dither_slice_with(values, one, &method)
 }
 
 /// Simple dither for slices using specific method.
 #[cfg(not(feature = "rayon"))]
-pub fn simple_dither_slice_with_linear_rng<T, M: LinearRng>(
+pub fn simple_dither_slice_with<T, M: LinearRng>(
     values: &mut [T],
     one: T,
     method: &M,
@@ -1120,13 +1582,12 @@ pub fn simple_dither_slice_with_linear_rng<T, M: LinearRng>(
     T: DitherFloat + Number + CastableFrom<f32>,
 {
     for (index, value) in values.iter_mut().enumerate() {
-        *value =
-            simple_dither_with_linear_rng(*value, one, index as u32, method);
+        *value = simple_dither_with(*value, one, index as u32, method);
     }
 }
 
 #[cfg(feature = "rayon")]
-pub fn simple_dither_slice_with_linear_rng<T, M: LinearRng>(
+pub fn simple_dither_slice_with<T, M: LinearRng>(
     values: &mut [T],
     one: T,
     method: &M,
@@ -1139,12 +1600,7 @@ pub fn simple_dither_slice_with_linear_rng<T, M: LinearRng>(
         .par_iter_mut()
         .enumerate()
         .for_each(|(index, value)| {
-            *value = simple_dither_with_linear_rng(
-                *value,
-                one,
-                index as u32,
-                method,
-            );
+            *value = simple_dither_with(*value, one, index as u32, method);
         });
 }
 
@@ -1200,7 +1656,7 @@ where
     I: IntoIterator<Item = T>,
 {
     let method = Hash::new(seed);
-    dither_iter_with_linear_rng(values, min, one, dither_amplitude, &method)
+    dither_iter_with(values, min, one, dither_amplitude, &method)
 }
 
 #[cfg(feature = "rayon")]
@@ -1217,12 +1673,12 @@ where
     I::IntoIter: Send,
 {
     let method = Hash::new(seed);
-    dither_iter_with_linear_rng(values, min, one, dither_amplitude, &method)
+    dither_iter_with(values, min, one, dither_amplitude, &method)
 }
 
 /// Dither values from an iterator using specific method.
 #[cfg(not(feature = "rayon"))]
-pub fn dither_iter_with_linear_rng<T, I, M: LinearRng>(
+pub fn dither_iter_with<T, I, M: LinearRng>(
     values: I,
     min: T,
     one: T,
@@ -1237,20 +1693,13 @@ where
         .into_iter()
         .enumerate()
         .map(|(index, value)| {
-            dither_with_linear_rng(
-                value,
-                min,
-                one,
-                dither_amplitude,
-                index as u32,
-                method,
-            )
+            dither_with(value, min, one, dither_amplitude, index as u32, method)
         })
         .collect()
 }
 
 #[cfg(feature = "rayon")]
-pub fn dither_iter_with_linear_rng<T, I, M: LinearRng>(
+pub fn dither_iter_with<T, I, M: LinearRng>(
     values: I,
     min: T,
     one: T,
@@ -1269,14 +1718,7 @@ where
         .into_par_iter()
         .enumerate()
         .map(|(index, value)| {
-            dither_with_linear_rng(
-                value,
-                min,
-                one,
-                dither_amplitude,
-                index as u32,
-                method,
-            )
+            dither_with(value, min, one, dither_amplitude, index as u32, method)
         })
         .collect()
 }
@@ -1289,7 +1731,7 @@ where
     I: IntoIterator<Item = T>,
 {
     let method = Hash::new(seed);
-    simple_dither_iter_with_linear_rng(values, one, &method)
+    simple_dither_iter_with(values, one, &method)
 }
 
 #[cfg(feature = "rayon")]
@@ -1300,12 +1742,12 @@ where
     I::IntoIter: Send,
 {
     let method = Hash::new(seed);
-    simple_dither_iter_with_linear_rng(values, one, &method)
+    simple_dither_iter_with(values, one, &method)
 }
 
 /// Simple dither for iterators using specific method.
 #[cfg(not(feature = "rayon"))]
-pub fn simple_dither_iter_with_linear_rng<T, I, M: LinearRng>(
+pub fn simple_dither_iter_with<T, I, M: LinearRng>(
     values: I,
     one: T,
     method: &M,
@@ -1318,13 +1760,13 @@ where
         .into_iter()
         .enumerate()
         .map(|(index, value)| {
-            simple_dither_with_linear_rng(value, one, index as u32, method)
+            simple_dither_with(value, one, index as u32, method)
         })
         .collect()
 }
 
 #[cfg(feature = "rayon")]
-pub fn simple_dither_iter_with_linear_rng<T, I, M: LinearRng>(
+pub fn simple_dither_iter_with<T, I, M: LinearRng>(
     values: I,
     one: T,
     method: &M,
@@ -1341,8 +1783,221 @@ where
         .into_par_iter()
         .enumerate()
         .map(|(index, value)| {
-            simple_dither_with_linear_rng(value, one, index as u32, method)
+            simple_dither_with(value, one, index as u32, method)
         })
+        .collect()
+}
+
+/// Dither float values in a slice when converting to lower precision using
+/// default hash method.
+///
+/// # Example
+///
+/// ```rust
+/// # #[cfg(feature = "nightly_f16")]
+/// # {
+/// use dithereens::dither_float_slice;
+///
+/// let values: Vec<f32> = vec![1.1, 1.2, 1.3, 1.4];
+/// let result: Vec<f16> = dither_float_slice(&values, 42);
+/// # }
+/// ```
+#[cfg(not(feature = "rayon"))]
+pub fn dither_float_slice<Src, Dest>(values: &[Src], seed: u32) -> Vec<Dest>
+where
+    Src: DitherFloatConversion<Dest> + DitherFloat + CastableFrom<f64> + Copy,
+{
+    let method = Hash::new(seed);
+    dither_float_slice_with(values, &method)
+}
+
+#[cfg(feature = "rayon")]
+pub fn dither_float_slice<Src, Dest>(values: &[Src], seed: u32) -> Vec<Dest>
+where
+    Src: DitherFloatConversion<Dest>
+        + DitherFloat
+        + CastableFrom<f64>
+        + Copy
+        + Send
+        + Sync,
+    Dest: Send,
+{
+    let method = Hash::new(seed);
+    dither_float_slice_with(values, &method)
+}
+
+/// Dither float values in a slice when converting to lower precision using a
+/// specific linear RNG method.
+#[cfg(not(feature = "rayon"))]
+pub fn dither_float_slice_with<Src, Dest, M: LinearRng>(
+    values: &[Src],
+    method: &M,
+) -> Vec<Dest>
+where
+    Src: DitherFloatConversion<Dest> + DitherFloat + CastableFrom<f64> + Copy,
+{
+    values
+        .iter()
+        .enumerate()
+        .map(|(index, &value)| dither_float_with(value, index as u32, method))
+        .collect()
+}
+
+#[cfg(feature = "rayon")]
+pub fn dither_float_slice_with<Src, Dest, M: LinearRng>(
+    values: &[Src],
+    method: &M,
+) -> Vec<Dest>
+where
+    Src: DitherFloatConversion<Dest>
+        + DitherFloat
+        + CastableFrom<f64>
+        + Copy
+        + Send
+        + Sync,
+    Dest: Send,
+{
+    use rayon::prelude::*;
+
+    values
+        .par_iter()
+        .enumerate()
+        .map(|(index, &value)| dither_float_with(value, index as u32, method))
+        .collect()
+}
+
+/// Dither float values in a 2D image slice when converting to lower precision
+/// using a spatial RNG method.
+///
+/// # Example
+///
+/// ```rust
+/// # #[cfg(feature = "nightly_f16")]
+/// # {
+/// use dithereens::{InterleavedGradientNoise, dither_float_slice_2d};
+///
+/// let width = 256;
+/// let pixels: Vec<f32> = vec![1.5; width * width];
+/// let method = InterleavedGradientNoise::new(42);
+/// let result: Vec<f16> = dither_float_slice_2d(&pixels, width, &method);
+/// # }
+/// ```
+#[cfg(not(feature = "rayon"))]
+pub fn dither_float_slice_2d<Src, Dest, M: SpatialRng>(
+    values: &[Src],
+    width: usize,
+    method: &M,
+) -> Vec<Dest>
+where
+    Src: DitherFloatConversion<Dest> + DitherFloat + CastableFrom<f64> + Copy,
+{
+    values
+        .iter()
+        .enumerate()
+        .map(|(index, &value)| {
+            let x = (index % width) as u32;
+            let y = (index / width) as u32;
+            dither_float_2d(value, x, y, method)
+        })
+        .collect()
+}
+
+#[cfg(feature = "rayon")]
+pub fn dither_float_slice_2d<Src, Dest, M: SpatialRng>(
+    values: &[Src],
+    width: usize,
+    method: &M,
+) -> Vec<Dest>
+where
+    Src: DitherFloatConversion<Dest>
+        + DitherFloat
+        + CastableFrom<f64>
+        + Copy
+        + Send
+        + Sync,
+    Dest: Send,
+{
+    use rayon::prelude::*;
+
+    values
+        .par_iter()
+        .enumerate()
+        .map(|(index, &value)| {
+            let x = (index % width) as u32;
+            let y = (index / width) as u32;
+            dither_float_2d(value, x, y, method)
+        })
+        .collect()
+}
+
+/// Dither float values from an iterator when converting to lower precision
+/// using default hash method.
+#[cfg(not(feature = "rayon"))]
+pub fn dither_float_iter<Src, Dest, I>(values: I, seed: u32) -> Vec<Dest>
+where
+    Src: DitherFloatConversion<Dest> + DitherFloat + CastableFrom<f64>,
+    I: IntoIterator<Item = Src>,
+{
+    let method = Hash::new(seed);
+    dither_float_iter_with(values, &method)
+}
+
+#[cfg(feature = "rayon")]
+pub fn dither_float_iter<Src, Dest, I>(values: I, seed: u32) -> Vec<Dest>
+where
+    Src: DitherFloatConversion<Dest>
+        + DitherFloat
+        + CastableFrom<f64>
+        + Send
+        + Sync,
+    Dest: Send,
+    I: IntoIterator<Item = Src>,
+    I::IntoIter: Send,
+{
+    let method = Hash::new(seed);
+    dither_float_iter_with(values, &method)
+}
+
+/// Dither float values from an iterator when converting to lower precision
+/// using a specific linear RNG method.
+#[cfg(not(feature = "rayon"))]
+pub fn dither_float_iter_with<Src, Dest, I, M: LinearRng>(
+    values: I,
+    method: &M,
+) -> Vec<Dest>
+where
+    Src: DitherFloatConversion<Dest> + DitherFloat + CastableFrom<f64>,
+    I: IntoIterator<Item = Src>,
+{
+    values
+        .into_iter()
+        .enumerate()
+        .map(|(index, value)| dither_float_with(value, index as u32, method))
+        .collect()
+}
+
+#[cfg(feature = "rayon")]
+pub fn dither_float_iter_with<Src, Dest, I, M: LinearRng>(
+    values: I,
+    method: &M,
+) -> Vec<Dest>
+where
+    Src: DitherFloatConversion<Dest>
+        + DitherFloat
+        + CastableFrom<f64>
+        + Send
+        + Sync,
+    Dest: Send,
+    I: IntoIterator<Item = Src>,
+    I::IntoIter: Send,
+{
+    use rayon::prelude::*;
+
+    let values_vec: Vec<_> = values.into_iter().collect();
+    values_vec
+        .into_par_iter()
+        .enumerate()
+        .map(|(index, value)| dither_float_with(value, index as u32, method))
         .collect()
 }
 
@@ -1390,7 +2045,7 @@ where
 
     /// Apply dithering with a specific method.
     #[cfg(not(feature = "rayon"))]
-    fn dither_with_linear_rng<M: LinearRng>(
+    fn dither_with<M: LinearRng>(
         self,
         min: T,
         one: T,
@@ -1399,7 +2054,7 @@ where
     ) -> Vec<T> {
         self.enumerate()
             .map(|(index, value)| {
-                dither_with_linear_rng(
+                dither_with(
                     value,
                     min,
                     one,
@@ -1412,7 +2067,7 @@ where
     }
 
     #[cfg(feature = "rayon")]
-    fn dither_with_linear_rng<M: LinearRng>(
+    fn dither_with<M: LinearRng>(
         self,
         min: T,
         one: T,
@@ -1424,7 +2079,7 @@ where
         Self: Send,
         Self::Item: Send,
     {
-        dither_iter_with_linear_rng(self, min, one, dither_amplitude, method)
+        dither_iter_with(self, min, one, dither_amplitude, method)
     }
 
     /// Apply simple dithering to all values in the iterator.
@@ -1450,33 +2105,25 @@ where
 
     /// Apply simple dithering with a specific method.
     #[cfg(not(feature = "rayon"))]
-    fn simple_dither_with_linear_rng<M: LinearRng>(
-        self,
-        one: T,
-        method: &M,
-    ) -> Vec<T>
+    fn simple_dither_with<M: LinearRng>(self, one: T, method: &M) -> Vec<T>
     where
         T: Number + CastableFrom<f32>,
     {
         self.enumerate()
             .map(|(index, value)| {
-                simple_dither_with_linear_rng(value, one, index as u32, method)
+                simple_dither_with(value, one, index as u32, method)
             })
             .collect()
     }
 
     #[cfg(feature = "rayon")]
-    fn simple_dither_with_linear_rng<M: LinearRng>(
-        self,
-        one: T,
-        method: &M,
-    ) -> Vec<T>
+    fn simple_dither_with<M: LinearRng>(self, one: T, method: &M) -> Vec<T>
     where
         T: Number + CastableFrom<f32> + Send + Sync,
         Self: Send,
         Self::Item: Send,
     {
-        simple_dither_iter_with_linear_rng(self, one, method)
+        simple_dither_iter_with(self, one, method)
     }
 }
 
@@ -1528,7 +2175,7 @@ where
     }
 
     /// Apply dithering with a specific method.
-    fn dither_with_linear_rng<M>(
+    fn dither_with<M>(
         self,
         min: T,
         one: T,
@@ -1543,7 +2190,7 @@ where
 
         self.enumerate()
             .map(|(index, value)| {
-                dither_with_linear_rng(
+                dither_with(
                     value,
                     min,
                     one,
@@ -1568,7 +2215,7 @@ where
     }
 
     /// Apply simple dithering with a specific method.
-    fn simple_dither_with_linear_rng<M>(self, one: T, method: &M) -> Vec<T>
+    fn simple_dither_with<M>(self, one: T, method: &M) -> Vec<T>
     where
         T: Number + CastableFrom<f32> + Send + Sync,
         M: LinearRng + Sync,
@@ -1577,7 +2224,7 @@ where
 
         self.enumerate()
             .map(|(index, value)| {
-                simple_dither_with_linear_rng(value, one, index as u32, method)
+                simple_dither_with(value, one, index as u32, method)
             })
             .collect()
     }

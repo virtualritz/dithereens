@@ -153,12 +153,9 @@ fn test_different_methods() {
     let hash_method = Hash::new(seed);
     let r2_method = R2::new(seed);
     let golden_method = GoldenRatio::new(seed);
-    let hash_result =
-        dither_with_linear_rng(value, 0.0, 255.0, 0.5, 0, &hash_method);
-    let r2_result =
-        dither_with_linear_rng(value, 0.0, 255.0, 0.5, 0, &r2_method);
-    let golden_result =
-        dither_with_linear_rng(value, 0.0, 255.0, 0.5, 0, &golden_method);
+    let hash_result = dither_with(value, 0.0, 255.0, 0.5, 0, &hash_method);
+    let r2_result = dither_with(value, 0.0, 255.0, 0.5, 0, &r2_method);
+    let golden_result = dither_with(value, 0.0, 255.0, 0.5, 0, &golden_method);
 
     // All should produce valid results
     assert!(hash_result >= 126.5 && hash_result <= 128.5);
@@ -277,8 +274,7 @@ fn test_method_consistency() {
 
     let default_result = dither(value, 0.0, 255.0, 0.5, 10, 42);
     let hash_method = Hash::new(42);
-    let hash_result =
-        dither_with_linear_rng(value, 0.0, 255.0, 0.5, 10, &hash_method);
+    let hash_result = dither_with(value, 0.0, 255.0, 0.5, 10, &hash_method);
 
     assert_eq!(default_result, hash_result);
 }
@@ -291,8 +287,8 @@ fn test_slice_with_methods() {
     // Test with different methods produces different results
     let hash_method = Hash::new(42);
     let r2_method = R2::new(42);
-    simple_dither_slice_with_linear_rng(&mut values1, 255.0, &hash_method);
-    simple_dither_slice_with_linear_rng(&mut values2, 255.0, &r2_method);
+    simple_dither_slice_with(&mut values1, 255.0, &hash_method);
+    simple_dither_slice_with(&mut values2, 255.0, &r2_method);
 
     // Both should be valid
     for &v in &values1 {
