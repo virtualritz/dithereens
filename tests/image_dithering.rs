@@ -382,7 +382,7 @@ fn test_gradient_dithering_comparison() {
     }
 
     // Test BlueNoise
-    #[cfg(feature = "blue_noise")]
+    #[cfg(feature = "blue-noise")]
     {
         let mut pixels = original_pixels.clone();
         let method = BlueNoise::new(42);
@@ -448,7 +448,7 @@ fn test_photo_simulation() {
         .expect("Failed to save/compare original");
 
     // Apply different dithering levels
-    #[cfg(feature = "blue_noise")]
+    #[cfg(feature = "blue-noise")]
     {
         for levels in [2, 4, 8] {
             let mut dithered = pixels.clone();
@@ -467,7 +467,7 @@ fn test_photo_simulation() {
         }
     }
 
-    #[cfg(not(feature = "blue_noise"))]
+    #[cfg(not(feature = "blue-noise"))]
     {
         for levels in [2, 4, 8] {
             let mut dithered = pixels.clone();

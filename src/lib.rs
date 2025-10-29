@@ -20,7 +20,7 @@
 //! - **`no_std` support**: Works in embedded environments.
 //! - **Generic types**: `f32`, `f64`, `f16` (with `nightly_f16` feature), or
 //!   any type implementing [`DitherFloat`].
-//! - **Blue noise**: High-quality blue noise dithering (with `blue_noise`
+//! - **Blue noise**: High-quality blue noise dithering (with `blue-noise`
 //!   feature).
 //!
 //! ## Quick Start
@@ -55,7 +55,7 @@
 //!   graphics.
 //! - **SpatialHash**: Spatial hash function for blue noise-like properties.
 //! - **BlueNoiseApprox**: Approximation combining IGN and SpatialHash.
-//! - **BlueNoise** (requires `blue_noise` feature): True blue noise from
+//! - **BlueNoise** (requires `blue-noise` feature): True blue noise from
 //!   precomputed tables.
 //!
 //! 2D methods use pixel coordinates to create spatially-aware dithering
@@ -78,6 +78,32 @@
 //! let dithered_r2 = simple_dither_with(value, 255.0, 0, &r2_method);
 //! let dithered_golden = simple_dither_with(value, 255.0, 0, &golden_method);
 //! ```
+//!
+//! ## Dynamic Method Selection
+//!
+//! The [`LinearDither`] and [`SpatialDither`] enums provide zero-cost dynamic
+//! dispatch for runtime method selection:
+//!
+//! ```rust
+//! use dithereens::{Hash, LinearDither, LinearRng, R2};
+//!
+//! // Store different methods in a collection.
+//! let methods: Vec<LinearDither> = vec![
+//!     LinearDither::Hash(Hash::new(1)),
+//!     LinearDither::R2(R2::new(2)),
+//! ];
+//!
+//! // All methods implement LinearRng through enum_dispatch.
+//! for method in &methods {
+//!     let noise = method.compute(100);
+//!     // Use the noise value...
+//! }
+//! ```
+//!
+//! This is useful when:
+//! - Selecting dithering methods at runtime based on configuration.
+//! - Storing heterogeneous collections of methods.
+//! - Implementing plugins or extensible systems.
 //!
 //! ## Image Dithering with 1D Methods
 //!
@@ -109,12 +135,46 @@
 //! let height = 256;
 //! let mut pixels: Vec<f32> = vec![0.5; width * height];
 //!
-//! // Use IGN for 2D dithering.
+//! // Use IGN for 2D dithering (1 channel, correlated noise).
 //! let method = InterleavedGradientNoise::new(42);
-//! simple_dither_slice_2d(&mut pixels, width, 255.0, &method);
+//! simple_dither_slice_2d::<1, 0, _, _>(&mut pixels, width, 255.0, &method);
 //!
 //! // pixels now contains dithered values.
 //! ```
+//!
+//! ## Multi-Channel Image Dithering
+//!
+//! The 2D dithering functions support multi-channel images (RGB, RGBA) with
+//! const-generic parameters for efficient processing:
+//!
+//! ```rust
+//! use dithereens::{InterleavedGradientNoise, simple_dither_slice_2d};
+//!
+//! let width = 512;
+//! let height = 512;
+//! let method = InterleavedGradientNoise::new(42);
+//!
+//! // RGB image with correlated noise (same noise pattern across RGB).
+//! // This is 3× faster than processing each channel separately.
+//! let mut rgb_data: Vec<f32> = vec![0.5; width * height * 3];
+//! simple_dither_slice_2d::<3, 0, _, _>(&mut rgb_data, width, 255.0, &method);
+//!
+//! // RGB image with uncorrelated noise (different pattern per channel).
+//! // Provides more randomness but requires computing noise per channel.
+//! let mut rgb_data2: Vec<f32> = vec![0.5; width * height * 3];
+//! simple_dither_slice_2d::<3, 1, _, _>(&mut rgb_data2, width, 255.0, &method);
+//!
+//! // RGBA image with correlated noise.
+//! let mut rgba_data: Vec<f32> = vec![0.5; width * height * 4];
+//! simple_dither_slice_2d::<4, 0, _, _>(&mut rgba_data, width, 255.0, &method);
+//! ```
+//!
+//! **Type parameters:**
+//! - `CHANNELS`: Number of channels per pixel (1 = grayscale, 3 = RGB, 4 =
+//!   RGBA).
+//! - `SEED_OFFSET`: Per-channel noise correlation.
+//!   - `0` = Correlated (same noise for all channels, fastest).
+//!   - `>0` = Uncorrelated (different noise per channel, more random).
 //!
 //! ## Performance Guide
 //!
@@ -167,11 +227,11 @@
 //!
 //! ## Blue Noise Support
 //!
-//! Enable the `blue_noise` feature for high-quality blue noise dithering:
+//! Enable the `blue-noise` feature for high-quality blue noise dithering:
 //!
 //! ```toml
 //! [dependencies]
-//! dithereens = { version = "0.3", features = ["blue_noise"] }
+//! dithereens = { version = "0.3", features = ["blue-noise"] }
 //! ```
 //!
 //! This adds the `BlueNoise` struct which provides true blue noise dithering
@@ -180,14 +240,22 @@
 //! **This increases binary size by ~5M!**
 //!
 //! ```rust
-//! #[cfg(feature = "blue_noise")]
+//! #[cfg(feature = "blue-noise")]
 //! use dithereens::{BlueNoise, simple_dither_slice_2d};
 //!
+//! # #[cfg(feature = "blue-noise")]
+//! # {
 //! let width = 256;
 //! let mut pixels: Vec<f32> = vec![0.5; width * width];
 //!
 //! let blue_noise = BlueNoise::new(42);
-//! simple_dither_slice_2d(&mut pixels, width, 255.0, &blue_noise);
+//! simple_dither_slice_2d::<1, 0, _, _>(
+//!     &mut pixels,
+//!     width,
+//!     255.0,
+//!     &blue_noise,
+//! );
+//! # }
 //! ```
 //!
 //! ## Float-to-Float Dithering
@@ -265,7 +333,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(feature = "nightly_f16", feature(f16))]
 
-#[cfg(feature = "blue_noise")]
+#[cfg(feature = "blue-noise")]
 mod blue_noise;
 
 #[cfg(not(feature = "std"))]
@@ -281,6 +349,7 @@ use core::{
     cmp::PartialOrd,
     ops::{Add, Mul, Neg, Sub},
 };
+use enum_dispatch::enum_dispatch;
 
 /// Trait for linear (1D) random number generators.
 ///
@@ -304,10 +373,8 @@ use core::{
 ///   distribution than random.
 /// - [`GoldenRatio`] -- Golden ratio sequence. Optimal 1D coverage with minimal
 ///   clustering.
+#[enum_dispatch]
 pub trait LinearRng: Sized + Send + Sync {
-    /// Create a new linear RNG with the given seed.
-    fn new(seed: u32) -> Self;
-
     /// Compute dither offset for a given index.
     /// Returns a value in range [-1, 1] to be scaled by amplitude.
     fn compute(&self, index: u32) -> f32;
@@ -540,12 +607,10 @@ pub trait LinearRng: Sized + Send + Sync {
 ///   good performance.
 /// - [`BlueNoiseApprox`] -- Combines IGN and [`SpatialHash`]. Approximates blue
 ///   noise characteristics.
-/// - [`BlueNoise`] (requires `blue_noise` feature) -- True blue noise from
+/// - `BlueNoise` (requires `blue-noise` feature) -- True blue noise from
 ///   precomputed tables. Highest quality.
+#[enum_dispatch]
 pub trait SpatialRng: Sized + Send + Sync {
-    /// Create a new spatial RNG with the given seed.
-    fn new(seed: u32) -> Self;
-
     /// Compute a deterministic value for given 2D coordinates.
     /// Returns a value in range [-1, 1].
     fn compute(&self, x: u32, y: u32) -> f32;
@@ -578,9 +643,9 @@ pub trait SpatialRng: Sized + Send + Sync {
         simple_dither_2d(value, one, x, y, self)
     }
 
-    /// Dither a 2D image stored as a flat slice.
+    /// Dither a 2D image stored as a flat slice with multi-channel support.
     #[cfg(not(feature = "rayon"))]
-    fn dither_slice_2d<T>(
+    fn dither_slice_2d<const CHANNELS: usize, const SEED_OFFSET: u32, T>(
         &self,
         values: &mut [T],
         width: usize,
@@ -591,12 +656,19 @@ pub trait SpatialRng: Sized + Send + Sync {
         T: DitherFloat,
         Self: Sized,
     {
-        dither_slice_2d(values, width, min, one, dither_amplitude, self)
+        dither_slice_2d::<CHANNELS, SEED_OFFSET, T, Self>(
+            values,
+            width,
+            min,
+            one,
+            dither_amplitude,
+            self,
+        )
     }
 
     /// Dither a 2D image stored as a flat slice (parallel version).
     #[cfg(feature = "rayon")]
-    fn dither_slice_2d<T>(
+    fn dither_slice_2d<const CHANNELS: usize, const SEED_OFFSET: u32, T>(
         &self,
         values: &mut [T],
         width: usize,
@@ -607,27 +679,55 @@ pub trait SpatialRng: Sized + Send + Sync {
         T: DitherFloat + Send + Sync,
         Self: Sized,
     {
-        dither_slice_2d(values, width, min, one, dither_amplitude, self)
+        dither_slice_2d::<CHANNELS, SEED_OFFSET, T, Self>(
+            values,
+            width,
+            min,
+            one,
+            dither_amplitude,
+            self,
+        )
     }
 
-    /// Simple dither for a 2D image stored as a flat slice.
+    /// Simple dither for a 2D image stored as a flat slice with multi-channel
+    /// support.
     #[cfg(not(feature = "rayon"))]
-    fn simple_dither_slice_2d<T>(&self, values: &mut [T], width: usize, one: T)
-    where
+    fn simple_dither_slice_2d<
+        const CHANNELS: usize,
+        const SEED_OFFSET: u32,
+        T,
+    >(
+        &self,
+        values: &mut [T],
+        width: usize,
+        one: T,
+    ) where
         T: DitherFloat + Number + CastableFrom<f32>,
         Self: Sized,
     {
-        simple_dither_slice_2d(values, width, one, self)
+        simple_dither_slice_2d::<CHANNELS, SEED_OFFSET, T, Self>(
+            values, width, one, self,
+        )
     }
 
     /// Simple dither for a 2D image stored as a flat slice (parallel version).
     #[cfg(feature = "rayon")]
-    fn simple_dither_slice_2d<T>(&self, values: &mut [T], width: usize, one: T)
-    where
+    fn simple_dither_slice_2d<
+        const CHANNELS: usize,
+        const SEED_OFFSET: u32,
+        T,
+    >(
+        &self,
+        values: &mut [T],
+        width: usize,
+        one: T,
+    ) where
         T: DitherFloat + Number + CastableFrom<f32> + Send + Sync,
         Self: Sized,
     {
-        simple_dither_slice_2d(values, width, one, self)
+        simple_dither_slice_2d::<CHANNELS, SEED_OFFSET, T, Self>(
+            values, width, one, self,
+        )
     }
 
     /// Dither a float value when converting to lower precision using 2D
@@ -681,317 +781,11 @@ pub trait SpatialRng: Sized + Send + Sync {
     }
 }
 
-/// Hash-based dithering (default method).
-///
-/// Fast general-purpose RNG with uniform distribution. Uses integer
-/// hash mixing for speed. Good choice when you need consistent
-/// performance across all index values.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Hash {
-    seed: u32,
-}
+mod linear;
+mod spatial;
 
-impl Hash {
-    pub fn new(seed: u32) -> Self {
-        Self { seed }
-    }
-}
-
-impl LinearRng for Hash {
-    fn new(seed: u32) -> Self {
-        Self { seed }
-    }
-
-    #[inline(always)]
-    fn compute(&self, index: u32) -> f32 {
-        // Better mixing of index and seed.
-        let mut hash = index;
-        hash = hash.wrapping_mul(1664525).wrapping_add(self.seed);
-        hash = hash.wrapping_mul(1664525).wrapping_add(1013904223);
-        hash ^= hash >> 16;
-        hash = hash.wrapping_mul(0x85ebca6b);
-        hash ^= hash >> 13;
-        hash = hash.wrapping_mul(0xc2b2ae35);
-        hash ^= hash >> 16;
-
-        // Convert to [-1, 1] range.
-        (hash as f32 / u32::MAX as f32) * 2.0 - 1.0
-    }
-}
-
-/// R2 low-discrepancy sequence for improved distribution.
-///
-/// Provides better spatial coverage than random sequences. Based on
-/// the generalized golden ratio (1.32471...). Produces visually
-/// pleasing patterns with minimal clustering or gaps.
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct R2 {
-    seed: f32,
-}
-
-impl Eq for R2 {}
-
-impl core::hash::Hash for R2 {
-    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        // Hash the bit representation of the float.
-        self.seed.to_bits().hash(state);
-    }
-}
-
-impl R2 {
-    pub fn new(seed: u32) -> Self {
-        Self {
-            seed: seed as f32 * 0.618_034,
-        }
-    }
-}
-
-impl LinearRng for R2 {
-    fn new(seed: u32) -> Self {
-        Self {
-            seed: seed as f32 * 0.618_034,
-        }
-    }
-
-    #[inline(always)]
-    fn compute(&self, index: u32) -> f32 {
-        // R2 sequence using generalized golden ratio.
-        const ALPHA: f32 = 0.754_877_7; // 1/φ₂ where φ₂ = 1.32471795724474602596
-
-        // Add seed as initial offset.
-        let value = (self.seed + ALPHA * index as f32).fract();
-
-        // Convert from [0, 1] to [-1, 1]
-        value * 2.0 - 1.0
-    }
-}
-
-/// Golden ratio sequence for 1D low-discrepancy sampling.
-///
-/// Classic low-discrepancy sequence using the golden ratio (1.618...).
-/// Optimal for 1D coverage with the most uniform distribution possible.
-/// Excellent for gradient-like data or smooth transitions.
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct GoldenRatio {
-    seed: f32,
-}
-
-impl Eq for GoldenRatio {}
-
-impl core::hash::Hash for GoldenRatio {
-    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        // Hash the bit representation of the float.
-        self.seed.to_bits().hash(state);
-    }
-}
-
-impl GoldenRatio {
-    pub fn new(seed: u32) -> Self {
-        Self {
-            seed: seed as f32 * 0.381_966_02,
-        }
-    }
-}
-
-impl LinearRng for GoldenRatio {
-    fn new(seed: u32) -> Self {
-        Self {
-            seed: seed as f32 * 0.618_034,
-        }
-    }
-
-    #[inline(always)]
-    fn compute(&self, index: u32) -> f32 {
-        const INV_GOLDEN: f32 = 0.618_034; // 1/φ where φ = 1.618033988749
-
-        // Golden ratio sequence with seed offset.
-        let value = (self.seed + INV_GOLDEN * index as f32).fract();
-
-        // Convert from [0, 1] to [-1, 1]
-        value * 2.0 - 1.0
-    }
-}
-
-/// Interleaved Gradient Noise for 2D dithering.
-///
-/// Fast algorithm from Jorge Jimenez's presentation at SIGGRAPH 2014.
-/// Widely used in real-time graphics for its speed and quality balance.
-/// Creates smooth gradient-like patterns with good visual properties.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct InterleavedGradientNoise {
-    x_offset: u32,
-    y_offset: u32,
-}
-
-impl InterleavedGradientNoise {
-    pub fn new(seed: u32) -> Self {
-        Self {
-            x_offset: seed.wrapping_mul(5),
-            y_offset: seed.wrapping_mul(7),
-        }
-    }
-}
-
-impl SpatialRng for InterleavedGradientNoise {
-    fn new(seed: u32) -> Self {
-        Self {
-            x_offset: seed.wrapping_mul(5),
-            y_offset: seed.wrapping_mul(7),
-        }
-    }
-
-    #[inline(always)]
-    fn compute(&self, x: u32, y: u32) -> f32 {
-        // Add seed offset to coordinates.
-        let x_offset = x.wrapping_add(self.x_offset);
-        let y_offset = y.wrapping_add(self.y_offset);
-
-        // IGN algorithm from Jorge Jimenez.
-        let value = (52.982_918
-            * ((0.06711056 * x_offset as f32 + 0.00583715 * y_offset as f32)
-                .fract()))
-        .fract();
-
-        // Convert from [0, 1] to [-1, 1]
-        value * 2.0 - 1.0
-    }
-}
-
-/// Spatial hash for 2D blue noise-like properties.
-///
-/// Uses coordinate hashing to create spatially decorrelated noise.
-/// Provides blue noise-like characteristics without lookup tables.
-/// Good balance between quality and memory efficiency.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct SpatialHash {
-    seed: u32,
-}
-
-impl SpatialHash {
-    pub fn new(seed: u32) -> Self {
-        Self { seed }
-    }
-}
-
-impl SpatialRng for SpatialHash {
-    fn new(seed: u32) -> Self {
-        Self { seed }
-    }
-
-    #[inline(always)]
-    fn compute(&self, x: u32, y: u32) -> f32 {
-        // Combine x, y with good spatial decorrelation.
-        let mut hash = x;
-        hash = hash.wrapping_mul(1664525).wrapping_add(y);
-        hash = hash.wrapping_mul(1664525).wrapping_add(self.seed);
-        hash ^= hash >> 16;
-        hash = hash.wrapping_mul(0x85ebca6b);
-        hash ^= hash >> 13;
-        hash = hash.wrapping_mul(0xc2b2ae35);
-        hash ^= hash >> 16;
-
-        // Convert to [-1, 1] range.
-        (hash as f32 / u32::MAX as f32) * 2.0 - 1.0
-    }
-}
-
-/// Blue noise approximation using multiple octaves.
-///
-/// Hybrid approach that combines [`InterleavedGradientNoise`] with
-/// [`SpatialHash`] to approximate true blue noise characteristics.
-/// Better quality than either method alone, without the memory cost
-/// of real blue noise tables.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct BlueNoiseApprox {
-    ign: InterleavedGradientNoise,
-    spatial: SpatialHash,
-}
-
-impl BlueNoiseApprox {
-    pub fn new(seed: u32) -> Self {
-        Self {
-            ign: InterleavedGradientNoise::new(seed),
-            spatial: SpatialHash::new(seed.wrapping_add(1337)),
-        }
-    }
-}
-
-impl SpatialRng for BlueNoiseApprox {
-    fn new(seed: u32) -> Self {
-        Self {
-            ign: InterleavedGradientNoise::new(seed),
-            spatial: SpatialHash::new(seed.wrapping_add(1337)),
-        }
-    }
-
-    #[inline(always)]
-    fn compute(&self, x: u32, y: u32) -> f32 {
-        // Use IGN as base with spatial hash for high-frequency detail.
-        let ign = self.ign.compute(x, y);
-        let hash = self.spatial.compute(x >> 1, y >> 1);
-
-        // Combine with emphasis on high frequencies
-        (ign * 0.75 + hash * 0.25).clamp(-1.0, 1.0)
-    }
-}
-
-/// True blue noise using precomputed table with stable seed-based offsetting.
-///
-/// Highest quality dithering using true blue noise from precomputed
-/// tables. Blue noise has optimal spectral characteristics -- high
-/// frequency content with no low-frequency clustering. Results in
-/// the most visually pleasing dithering patterns. Adds ~5MB to binary size.
-#[cfg(feature = "blue_noise")]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct BlueNoise {
-    x_offset: u32,
-    y_offset: u32,
-    channel: usize,
-}
-
-#[cfg(feature = "blue_noise")]
-impl BlueNoise {
-    pub fn new(seed: u32) -> Self {
-        Self {
-            x_offset: seed.wrapping_mul(13),
-            y_offset: seed.wrapping_mul(17),
-            channel: ((seed >> 16) & 0x3) as usize,
-        }
-    }
-}
-
-#[cfg(feature = "blue_noise")]
-impl SpatialRng for BlueNoise {
-    fn new(seed: u32) -> Self {
-        Self {
-            x_offset: seed.wrapping_mul(13),
-            y_offset: seed.wrapping_mul(17),
-            channel: ((seed >> 16) & 0x3) as usize,
-        }
-    }
-
-    #[inline(always)]
-    fn compute(&self, x: u32, y: u32) -> f32 {
-        // Apply precomputed seed-based offset to coordinates
-        let x_offset = x.wrapping_add(self.x_offset);
-        let y_offset = y.wrapping_add(self.y_offset);
-
-        // Wrap coordinates to table size (256×256)
-        let table_x = (x_offset & 0xFF) as usize;
-        let table_y = (y_offset & 0xFF) as usize;
-
-        // Access the precomputed blue noise table with preselected channel
-        // Convert from [0, 1] to [-1, 1] range
-        blue_noise::BLUE_NOISE_TABLE[table_y][table_x][self.channel] * 2.0 - 1.0
-    }
-}
+pub use linear::*;
+pub use spatial::*;
 
 /// Minimal trait requirements for dithering.
 pub trait DitherFloat:
@@ -1129,10 +923,10 @@ impl DitherFloatConversion<f16> for f32 {
         }
 
         // f16 subnormals have fixed ULP.
-        const F16_MIN_NORMAL: f32 = 6.103515625e-5; // 2^-14
+        const F16_MIN_NORMAL: f32 = 6.103_515_6e-5; // 2^-14
         if abs_val < F16_MIN_NORMAL {
             // Subnormal range has fixed ULP of 2^-24.
-            return 5.960464477539063e-8; // 2^-24
+            return 5.960_464_5e-8; // 2^-24
         }
 
         // Normal range: extract exponent and compute ULP.
@@ -1510,9 +1304,49 @@ pub fn dither_slice_with<T, M: LinearRng>(
         });
 }
 
-/// Dither a 2D image stored as a flat slice.
+/// Dither a 2D image stored as a flat slice with full control and multi-channel
+/// support.
+///
+/// Provides complete control over dithering parameters while supporting
+/// multi-channel images (e.g., RGB, RGBA) with efficient noise computation.
+///
+/// # Type Parameters
+/// - `CHANNELS`: Number of channels per pixel (1 for grayscale, 3 for RGB, 4
+///   for RGBA).
+/// - `SEED_OFFSET`: Per-channel seed offset (0 = correlated noise across
+///   channels, non-zero = different noise per channel).
+///
+/// # Parameters
+/// - `values`: Flat slice of interleaved pixel data (length = width * height *
+///   CHANNELS).
+/// - `width`: Image width in pixels.
+/// - `min`: Minimum output value.
+/// - `one`: Maximum output value.
+/// - `dither_amplitude`: Controls dithering strength.
+/// - `method`: Spatial dithering method implementing [`SpatialRng`].
+///
+/// # Example
+///
+/// ```rust
+/// use dithereens::{InterleavedGradientNoise, dither_slice_2d};
+///
+/// let width = 256;
+/// let height = 256;
+/// let mut rgb_data: Vec<f32> = vec![0.5; width * height * 3];
+/// let method = InterleavedGradientNoise::new(42);
+///
+/// // Dither RGB with correlated noise.
+/// dither_slice_2d::<3, 0, _, _>(
+///     &mut rgb_data,
+///     width,
+///     0.0,
+///     255.0,
+///     0.5,
+///     &method,
+/// );
+/// ```
 #[cfg(not(feature = "rayon"))]
-pub fn dither_slice_2d<T, M: SpatialRng>(
+pub fn dither_slice_2d<const CHANNELS: usize, const SEED_OFFSET: u32, T, M>(
     values: &mut [T],
     width: usize,
     min: T,
@@ -1521,16 +1355,57 @@ pub fn dither_slice_2d<T, M: SpatialRng>(
     method: &M,
 ) where
     T: DitherFloat,
+    M: SpatialRng,
 {
-    for (index, value) in values.iter_mut().enumerate() {
-        let x = (index % width) as u32;
-        let y = (index / width) as u32;
-        *value = dither_2d(*value, min, one, dither_amplitude, x, y, method);
+    let height = values.len() / (width * CHANNELS);
+
+    if SEED_OFFSET == 0 {
+        // Correlated noise: compute once per pixel, apply to all channels.
+        for y in 0..height {
+            for x in 0..width {
+                let noise = method.compute(x as u32, y as u32);
+                let dither = if dither_amplitude == T::ZERO {
+                    T::ZERO
+                } else {
+                    T::cast_from(noise as f64) * dither_amplitude
+                };
+
+                let pixel_start = (y * width + x) * CHANNELS;
+                for c in 0..CHANNELS {
+                    let idx = pixel_start + c;
+                    values[idx] =
+                        (min + values[idx] * (one - min) + dither).round();
+                }
+            }
+        }
+    } else {
+        // Uncorrelated noise: compute per channel using seed offset.
+        for y in 0..height {
+            for x in 0..width {
+                let pixel_start = (y * width + x) * CHANNELS;
+                for c in 0..CHANNELS {
+                    let channel_offset = (c as u32) * SEED_OFFSET;
+                    let noise = method.compute(
+                        (x as u32).wrapping_add(channel_offset),
+                        (y as u32).wrapping_add(channel_offset),
+                    );
+                    let dither = if dither_amplitude == T::ZERO {
+                        T::ZERO
+                    } else {
+                        T::cast_from(noise as f64) * dither_amplitude
+                    };
+
+                    let idx = pixel_start + c;
+                    values[idx] =
+                        (min + values[idx] * (one - min) + dither).round();
+                }
+            }
+        }
     }
 }
 
 #[cfg(feature = "rayon")]
-pub fn dither_slice_2d<T, M: SpatialRng>(
+pub fn dither_slice_2d<const CHANNELS: usize, const SEED_OFFSET: u32, T, M>(
     values: &mut [T],
     width: usize,
     min: T,
@@ -1539,18 +1414,61 @@ pub fn dither_slice_2d<T, M: SpatialRng>(
     method: &M,
 ) where
     T: DitherFloat + Send + Sync,
+    M: SpatialRng,
 {
     use rayon::prelude::*;
 
-    values
-        .par_iter_mut()
-        .enumerate()
-        .for_each(|(index, value)| {
-            let x = (index % width) as u32;
-            let y = (index / width) as u32;
-            *value =
-                dither_2d(*value, min, one, dither_amplitude, x, y, method);
-        });
+    let row_size = width * CHANNELS;
+
+    if SEED_OFFSET == 0 {
+        // Correlated noise: process rows in parallel using par_chunks_mut.
+        values
+            .par_chunks_mut(row_size)
+            .enumerate()
+            .for_each(|(y, row)| {
+                for x in 0..width {
+                    let noise = method.compute(x as u32, y as u32);
+                    let dither = if dither_amplitude == T::ZERO {
+                        T::ZERO
+                    } else {
+                        T::cast_from(noise as f64) * dither_amplitude
+                    };
+
+                    let pixel_start = x * CHANNELS;
+                    for c in 0..CHANNELS {
+                        let idx = pixel_start + c;
+                        row[idx] =
+                            (min + row[idx] * (one - min) + dither).round();
+                    }
+                }
+            });
+    } else {
+        // Uncorrelated noise: process rows in parallel using par_chunks_mut.
+        values
+            .par_chunks_mut(row_size)
+            .enumerate()
+            .for_each(|(y, row)| {
+                for x in 0..width {
+                    let pixel_start = x * CHANNELS;
+                    for c in 0..CHANNELS {
+                        let channel_offset = (c as u32) * SEED_OFFSET;
+                        let noise = method.compute(
+                            (x as u32).wrapping_add(channel_offset),
+                            (y as u32).wrapping_add(channel_offset),
+                        );
+                        let dither = if dither_amplitude == T::ZERO {
+                            T::ZERO
+                        } else {
+                            T::cast_from(noise as f64) * dither_amplitude
+                        };
+
+                        let idx = pixel_start + c;
+                        row[idx] =
+                            (min + row[idx] * (one - min) + dither).round();
+                    }
+                }
+            });
+    }
 }
 
 /// Simple dither for slices using default hash method.
@@ -1604,42 +1522,168 @@ pub fn simple_dither_slice_with<T, M: LinearRng>(
         });
 }
 
-/// Simple dither for 2D slices.
+/// Simple dither for 2D slices with multi-channel support.
+///
+/// Processes multi-channel image data (e.g., RGB, RGBA) efficiently by
+/// computing noise once per pixel coordinate and optionally sharing it across
+/// channels.
+///
+/// # Type Parameters
+/// - `CHANNELS`: Number of channels per pixel (1 for grayscale, 3 for RGB, 4
+///   for RGBA).
+/// - `SEED_OFFSET`: Per-channel seed offset (0 = correlated noise across
+///   channels, non-zero = different noise per channel).
+///
+/// # Parameters
+/// - `values`: Flat slice of interleaved pixel data (length = width * height *
+///   CHANNELS).
+/// - `width`: Image width in pixels.
+/// - `one`: Maximum output value (typically 255.0).
+/// - `method`: Spatial dithering method implementing [`SpatialRng`].
+///
+/// # Example
+///
+/// ```rust
+/// use dithereens::{InterleavedGradientNoise, simple_dither_slice_2d};
+///
+/// let width = 256;
+/// let height = 256;
+///
+/// // RGB image with correlated noise (same noise for all channels).
+/// let mut rgb_data: Vec<f32> = vec![0.5; width * height * 3];
+/// let method = InterleavedGradientNoise::new(42);
+/// simple_dither_slice_2d::<3, 0, _, _>(&mut rgb_data, width, 255.0, &method);
+///
+/// // RGB image with uncorrelated noise (different noise per channel).
+/// let mut rgb_data2: Vec<f32> = vec![0.5; width * height * 3];
+/// simple_dither_slice_2d::<3, 1, _, _>(&mut rgb_data2, width, 255.0, &method);
+/// ```
 #[cfg(not(feature = "rayon"))]
-pub fn simple_dither_slice_2d<T, M: SpatialRng>(
+pub fn simple_dither_slice_2d<
+    const CHANNELS: usize,
+    const SEED_OFFSET: u32,
+    T,
+    M,
+>(
     values: &mut [T],
     width: usize,
     one: T,
     method: &M,
 ) where
     T: DitherFloat + Number + CastableFrom<f32>,
+    M: SpatialRng,
 {
-    for (index, value) in values.iter_mut().enumerate() {
-        let x = (index % width) as u32;
-        let y = (index / width) as u32;
-        *value = simple_dither_2d(*value, one, x, y, method);
+    let height = values.len() / (width * CHANNELS);
+
+    if SEED_OFFSET == 0 {
+        // Correlated noise: compute once per pixel, apply to all channels.
+        for y in 0..height {
+            for x in 0..width {
+                let noise = method.compute(x as u32, y as u32);
+                let dither_offset =
+                    T::cast_from(noise as f64) * T::cast_from(0.5_f32);
+
+                let pixel_start = (y * width + x) * CHANNELS;
+                for c in 0..CHANNELS {
+                    let idx = pixel_start + c;
+                    let scaled = values[idx] * one;
+                    values[idx] =
+                        (scaled + dither_offset).round().clamp(T::ZERO, one);
+                }
+            }
+        }
+    } else {
+        // Uncorrelated noise: compute per channel using seed offset.
+        for y in 0..height {
+            for x in 0..width {
+                let pixel_start = (y * width + x) * CHANNELS;
+                for c in 0..CHANNELS {
+                    // Compute different noise for each channel by offsetting
+                    // coordinates.
+                    let channel_offset = (c as u32) * SEED_OFFSET;
+                    let noise = method.compute(
+                        (x as u32).wrapping_add(channel_offset),
+                        (y as u32).wrapping_add(channel_offset),
+                    );
+                    let dither_offset =
+                        T::cast_from(noise as f64) * T::cast_from(0.5_f32);
+
+                    let idx = pixel_start + c;
+                    let scaled = values[idx] * one;
+                    values[idx] =
+                        (scaled + dither_offset).round().clamp(T::ZERO, one);
+                }
+            }
+        }
     }
 }
 
 #[cfg(feature = "rayon")]
-pub fn simple_dither_slice_2d<T, M: SpatialRng>(
+pub fn simple_dither_slice_2d<
+    const CHANNELS: usize,
+    const SEED_OFFSET: u32,
+    T,
+    M,
+>(
     values: &mut [T],
     width: usize,
     one: T,
     method: &M,
 ) where
     T: DitherFloat + Number + CastableFrom<f32> + Send + Sync,
+    M: SpatialRng,
 {
     use rayon::prelude::*;
 
-    values
-        .par_iter_mut()
-        .enumerate()
-        .for_each(|(index, value)| {
-            let x = (index % width) as u32;
-            let y = (index / width) as u32;
-            *value = simple_dither_2d(*value, one, x, y, method);
-        });
+    let row_size = width * CHANNELS;
+
+    if SEED_OFFSET == 0 {
+        // Correlated noise: process rows in parallel using par_chunks_mut.
+        values
+            .par_chunks_mut(row_size)
+            .enumerate()
+            .for_each(|(y, row)| {
+                for x in 0..width {
+                    let noise = method.compute(x as u32, y as u32);
+                    let dither_offset =
+                        T::cast_from(noise as f64) * T::cast_from(0.5_f32);
+
+                    let pixel_start = x * CHANNELS;
+                    for c in 0..CHANNELS {
+                        let idx = pixel_start + c;
+                        let scaled = row[idx] * one;
+                        row[idx] = (scaled + dither_offset)
+                            .round()
+                            .clamp(T::ZERO, one);
+                    }
+                }
+            });
+    } else {
+        // Uncorrelated noise: process rows in parallel using par_chunks_mut.
+        values
+            .par_chunks_mut(row_size)
+            .enumerate()
+            .for_each(|(y, row)| {
+                for x in 0..width {
+                    let pixel_start = x * CHANNELS;
+                    for c in 0..CHANNELS {
+                        let channel_offset = (c as u32) * SEED_OFFSET;
+                        let noise = method.compute(
+                            (x as u32).wrapping_add(channel_offset),
+                            (y as u32).wrapping_add(channel_offset),
+                        );
+                        let dither_offset =
+                            T::cast_from(noise as f64) * T::cast_from(0.5_f32);
+
+                        let idx = pixel_start + c;
+                        let scaled = row[idx] * one;
+                        row[idx] = (scaled + dither_offset)
+                            .round()
+                            .clamp(T::ZERO, one);
+                    }
+                }
+            });
+    }
 }
 
 /// Dither values from an iterator using default hash method.
@@ -2252,19 +2296,19 @@ pub mod rng {
     ///
     /// This function uses a spatial RNG to generate deterministic
     /// random numbers based on position. The same (x, y) coordinates with
-    /// the same seed will always produce the same result.
+    /// the same method will always produce the same result.
     ///
     /// # Examples
     ///
     /// ```rust
     /// use dithereens::{SpatialHash, rng::spatial_rng};
     ///
-    /// let random_value = spatial_rng::<SpatialHash>(10, 20, 42); // seed = 42
+    /// let method = SpatialHash::new(42);
+    /// let random_value = spatial_rng(&method, 10, 20);
     /// assert!(random_value >= 0.0 && random_value <= 1.0);
     /// ```
     #[inline(always)]
-    pub fn spatial_rng<T: SpatialRng>(x: u32, y: u32, seed: u32) -> f32 {
-        let method = T::new(seed);
+    pub fn spatial_rng<T: SpatialRng>(method: &T, x: u32, y: u32) -> f32 {
         // Convert from [-1, 1] to [0, 1]
         (method.compute(x, y) + 1.0) * 0.5
     }
@@ -2276,18 +2320,18 @@ pub mod rng {
     /// ```rust
     /// use dithereens::{InterleavedGradientNoise, rng::spatial_rng_range};
     ///
-    /// let random_value =
-    ///     spatial_rng_range::<InterleavedGradientNoise>(10, 20, 42, 100.0);
+    /// let method = InterleavedGradientNoise::new(42);
+    /// let random_value = spatial_rng_range(&method, 10, 20, 100.0);
     /// assert!(random_value >= 0.0 && random_value <= 100.0);
     /// ```
     #[inline(always)]
     pub fn spatial_rng_range<T: SpatialRng>(
+        method: &T,
         x: u32,
         y: u32,
-        seed: u32,
         max: f32,
     ) -> f32 {
-        spatial_rng::<T>(x, y, seed) * max
+        spatial_rng(method, x, y) * max
     }
 
     /// Generate a position-based random integer in [0, max) range.
@@ -2297,16 +2341,17 @@ pub mod rng {
     /// ```rust
     /// use dithereens::{SpatialHash, rng::spatial_rng_int};
     ///
-    /// let random_int = spatial_rng_int::<SpatialHash>(10, 20, 42, 6); // dice roll
+    /// let method = SpatialHash::new(42);
+    /// let random_int = spatial_rng_int(&method, 10, 20, 6); // dice roll
     /// assert!(random_int < 6);
     /// ```
     #[inline(always)]
     pub fn spatial_rng_int<T: SpatialRng>(
+        method: &T,
         x: u32,
         y: u32,
-        seed: u32,
         max: u32,
     ) -> u32 {
-        (spatial_rng::<T>(x, y, seed) * max as f32) as u32
+        (spatial_rng(method, x, y) * max as f32) as u32
     }
 }

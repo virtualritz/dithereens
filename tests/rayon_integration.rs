@@ -13,7 +13,7 @@ mod rayon_tests {
         assert_eq!(result.len(), 5);
         // All values should be in valid range [0.0, 255.0]
         for &value in &result {
-            assert!(value >= 0.0 && value <= 255.0);
+            assert!((0.0..=255.0).contains(&value));
         }
     }
 
@@ -28,7 +28,7 @@ mod rayon_tests {
         // Values should be reasonable (not necessarily clamped like
         // simple_dither)
         for &value in &result {
-            assert!(value >= -1.0 && value <= 256.0); // Allow some tolerance for dithering
+            assert!((-1.0..=256.0).contains(&value)); // Allow some tolerance for dithering
         }
     }
 
@@ -44,7 +44,7 @@ mod rayon_tests {
 
         assert_eq!(result.len(), 5);
         for &value in &result {
-            assert!(value >= 0.0 && value <= 255.0);
+            assert!((0.0..=255.0).contains(&value));
         }
     }
 
@@ -119,13 +119,13 @@ mod rayon_tests {
 
         // All should produce valid results
         for &v in &hash_result {
-            assert!(v >= 0.0 && v <= 255.0);
+            assert!((0.0..=255.0).contains(&v));
         }
         for &v in &r2_result {
-            assert!(v >= 0.0 && v <= 255.0);
+            assert!((0.0..=255.0).contains(&v));
         }
         for &v in &golden_result {
-            assert!(v >= 0.0 && v <= 255.0);
+            assert!((0.0..=255.0).contains(&v));
         }
 
         // Different methods should generally produce different results

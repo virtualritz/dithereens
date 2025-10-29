@@ -1,6 +1,6 @@
 use dithereens::*;
 
-#[cfg(feature = "blue_noise")]
+#[cfg(feature = "blue-noise")]
 #[test]
 fn test_blue_noise_table_basic() {
     // Test basic functionality of BlueNoise
@@ -11,10 +11,10 @@ fn test_blue_noise_table_basic() {
     let result = simple_dither_2d(value, 255.0, 10, 10, &blue_noise);
 
     // Result should be within valid range
-    assert!(result >= 0.0 && result <= 255.0);
+    assert!((0.0..=255.0).contains(&result));
 }
 
-#[cfg(feature = "blue_noise")]
+#[cfg(feature = "blue-noise")]
 #[test]
 fn test_blue_noise_table_deterministic() {
     let blue_noise = BlueNoise::new(123);
@@ -27,7 +27,7 @@ fn test_blue_noise_table_deterministic() {
     assert_eq!(result1, result2, "Blue noise table should be deterministic");
 }
 
-#[cfg(feature = "blue_noise")]
+#[cfg(feature = "blue-noise")]
 #[test]
 fn test_blue_noise_table_seed_variation() {
     // Different seeds should produce different results
@@ -56,7 +56,7 @@ fn test_blue_noise_table_seed_variation() {
     );
 }
 
-#[cfg(feature = "blue_noise")]
+#[cfg(feature = "blue-noise")]
 #[test]
 fn test_blue_noise_table_wrapping() {
     let blue_noise = BlueNoise::new(42);
@@ -76,7 +76,7 @@ fn test_blue_noise_table_wrapping() {
     );
 }
 
-#[cfg(feature = "blue_noise")]
+#[cfg(feature = "blue-noise")]
 #[test]
 fn test_blue_noise_table_large_coordinates() {
     let blue_noise = BlueNoise::new(42);
@@ -86,12 +86,12 @@ fn test_blue_noise_table_large_coordinates() {
     let result = simple_dither_2d(value, 255.0, 100000, 200000, &blue_noise);
 
     assert!(
-        result >= 0.0 && result <= 255.0,
+        (0.0..=255.0).contains(&result),
         "Large coordinates should work"
     );
 }
 
-#[cfg(feature = "blue_noise")]
+#[cfg(feature = "blue-noise")]
 #[test]
 fn test_blue_noise_table_distribution() {
     let blue_noise = BlueNoise::new(42);
@@ -102,7 +102,7 @@ fn test_blue_noise_table_distribution() {
     let mut image = vec![0.5f32; width * height];
 
     // Apply blue noise dithering
-    simple_dither_slice_2d(&mut image, width, 255.0, &blue_noise);
+    simple_dither_slice_2d::<1, 0, _, _>(&mut image, width, 255.0, &blue_noise);
 
     // Check that we get a good distribution of values
     let low_count = image.iter().filter(|&&v| v < 128.0).count();
@@ -116,7 +116,7 @@ fn test_blue_noise_table_distribution() {
     );
 }
 
-#[cfg(all(feature = "rayon", feature = "blue_noise"))]
+#[cfg(all(feature = "rayon", feature = "blue-noise"))]
 #[test]
 fn test_blue_noise_table_rayon_consistency() {
     let blue_noise = BlueNoise::new(42);
@@ -136,7 +136,12 @@ fn test_blue_noise_table_rayon_consistency() {
 
     // Parallel processing
     let mut par_results = image.clone();
-    simple_dither_slice_2d(&mut par_results, width, 255.0, &blue_noise);
+    simple_dither_slice_2d::<1, 0, _, _>(
+        &mut par_results,
+        width,
+        255.0,
+        &blue_noise,
+    );
 
     // Results should be identical
     assert_eq!(
@@ -145,7 +150,7 @@ fn test_blue_noise_table_rayon_consistency() {
     );
 }
 
-#[cfg(all(feature = "rayon", feature = "blue_noise"))]
+#[cfg(all(feature = "rayon", feature = "blue-noise"))]
 #[test]
 fn test_blue_noise_table_rayon_deterministic() {
     let blue_noise = BlueNoise::new(123);
@@ -157,13 +162,28 @@ fn test_blue_noise_table_rayon_deterministic() {
 
     // Run parallel processing multiple times
     let mut results1 = image.clone();
-    simple_dither_slice_2d(&mut results1, width, 255.0, &blue_noise);
+    simple_dither_slice_2d::<1, 0, _, _>(
+        &mut results1,
+        width,
+        255.0,
+        &blue_noise,
+    );
 
     let mut results2 = image.clone();
-    simple_dither_slice_2d(&mut results2, width, 255.0, &blue_noise);
+    simple_dither_slice_2d::<1, 0, _, _>(
+        &mut results2,
+        width,
+        255.0,
+        &blue_noise,
+    );
 
     let mut results3 = image.clone();
-    simple_dither_slice_2d(&mut results3, width, 255.0, &blue_noise);
+    simple_dither_slice_2d::<1, 0, _, _>(
+        &mut results3,
+        width,
+        255.0,
+        &blue_noise,
+    );
 
     // All runs should produce identical results
     assert_eq!(
@@ -176,7 +196,7 @@ fn test_blue_noise_table_rayon_deterministic() {
     );
 }
 
-#[cfg(feature = "blue_noise")]
+#[cfg(feature = "blue-noise")]
 #[test]
 fn test_blue_noise_vs_approximation() {
     // Compare the real blue noise table with the approximation
@@ -194,8 +214,8 @@ fn test_blue_noise_vs_approximation() {
                 simple_dither_2d(value, 255.0, x, y, &blue_noise_approx);
 
             // They should both be valid but likely different
-            assert!(table_result >= 0.0 && table_result <= 255.0);
-            assert!(approx_result >= 0.0 && approx_result <= 255.0);
+            assert!((0.0..=255.0).contains(&table_result));
+            assert!((0.0..=255.0).contains(&approx_result));
         }
     }
 }

@@ -27,7 +27,7 @@ reduce quantization artifacts.
 - **`no_std` support**: Works in embedded environments.
 - **Generic types**: `f32`, `f64`, `f16` (with `nightly_f16` feature), or
   any type implementing [`DitherFloat`](https://docs.rs/dithereens/latest/dithereens/trait.DitherFloat.html).
-- **Blue noise**: High-quality blue noise dithering (with `blue_noise`
+- **Blue noise**: High-quality blue noise dithering (with `blue-noise`
   feature).
 
 ### Quick Start
@@ -62,7 +62,7 @@ spatial correlation between pixels.
   graphics.
 - **SpatialHash**: Spatial hash function for blue noise-like properties.
 - **BlueNoiseApprox**: Approximation combining IGN and SpatialHash.
-- **BlueNoise** (requires `blue_noise` feature): True blue noise from
+- **BlueNoise** (requires `blue-noise` feature): True blue noise from
   precomputed tables.
 
 2D methods use pixel coordinates to create spatially-aware dithering
@@ -85,6 +85,32 @@ let dithered_hash = simple_dither_with(value, 255.0, 0, &hash_method);
 let dithered_r2 = simple_dither_with(value, 255.0, 0, &r2_method);
 let dithered_golden = simple_dither_with(value, 255.0, 0, &golden_method);
 ```
+
+### Dynamic Method Selection
+
+The [`LinearDither`] and [`SpatialDither`] enums provide zero-cost dynamic
+dispatch for runtime method selection:
+
+```rust
+use dithereens::{Hash, LinearDither, LinearRng, R2};
+
+// Store different methods in a collection.
+let methods: Vec<LinearDither> = vec![
+    LinearDither::Hash(Hash::new(1)),
+    LinearDither::R2(R2::new(2)),
+];
+
+// All methods implement LinearRng through enum_dispatch.
+for method in &methods {
+    let noise = method.compute(100);
+    // Use the noise value...
+}
+```
+
+This is useful when:
+- Selecting dithering methods at runtime based on configuration.
+- Storing heterogeneous collections of methods.
+- Implementing plugins or extensible systems.
 
 ### Image Dithering with 1D Methods
 
@@ -116,12 +142,46 @@ let width = 256;
 let height = 256;
 let mut pixels: Vec<f32> = vec![0.5; width * height];
 
-// Use IGN for 2D dithering.
+// Use IGN for 2D dithering (1 channel, correlated noise).
 let method = InterleavedGradientNoise::new(42);
-simple_dither_slice_2d(&mut pixels, width, 255.0, &method);
+simple_dither_slice_2d::<1, 0, _, _>(&mut pixels, width, 255.0, &method);
 
 // pixels now contains dithered values.
 ```
+
+### Multi-Channel Image Dithering
+
+The 2D dithering functions support multi-channel images (RGB, RGBA) with
+const-generic parameters for efficient processing:
+
+```rust
+use dithereens::{InterleavedGradientNoise, simple_dither_slice_2d};
+
+let width = 512;
+let height = 512;
+let method = InterleavedGradientNoise::new(42);
+
+// RGB image with correlated noise (same noise pattern across RGB).
+// This is 3× faster than processing each channel separately.
+let mut rgb_data: Vec<f32> = vec![0.5; width * height * 3];
+simple_dither_slice_2d::<3, 0, _, _>(&mut rgb_data, width, 255.0, &method);
+
+// RGB image with uncorrelated noise (different pattern per channel).
+// Provides more randomness but requires computing noise per channel.
+let mut rgb_data2: Vec<f32> = vec![0.5; width * height * 3];
+simple_dither_slice_2d::<3, 1, _, _>(&mut rgb_data2, width, 255.0, &method);
+
+// RGBA image with correlated noise.
+let mut rgba_data: Vec<f32> = vec![0.5; width * height * 4];
+simple_dither_slice_2d::<4, 0, _, _>(&mut rgba_data, width, 255.0, &method);
+```
+
+**Type parameters:**
+- `CHANNELS`: Number of channels per pixel (1 = grayscale, 3 = RGB, 4 =
+  RGBA).
+- `SEED_OFFSET`: Per-channel noise correlation.
+  - `0` = Correlated (same noise for all channels, fastest).
+  - `>0` = Uncorrelated (different noise per channel, more random).
 
 ### Performance Guide
 
@@ -174,11 +234,11 @@ dithereens = { version = "0.3", features = ["nightly_f16"] }
 
 ### Blue Noise Support
 
-Enable the `blue_noise` feature for high-quality blue noise dithering:
+Enable the `blue-noise` feature for high-quality blue noise dithering:
 
 ```toml
 [dependencies]
-dithereens = { version = "0.3", features = ["blue_noise"] }
+dithereens = { version = "0.3", features = ["blue-noise"] }
 ```
 
 This adds the `BlueNoise` struct which provides true blue noise dithering
@@ -187,14 +247,19 @@ using a precomputed 256×256×4 table.
 **This increases binary size by ~5M!**
 
 ```rust
-#[cfg(feature = "blue_noise")]
+#[cfg(feature = "blue-noise")]
 use dithereens::{BlueNoise, simple_dither_slice_2d};
 
 let width = 256;
 let mut pixels: Vec<f32> = vec![0.5; width * width];
 
 let blue_noise = BlueNoise::new(42);
-simple_dither_slice_2d(&mut pixels, width, 255.0, &blue_noise);
+simple_dither_slice_2d::<1, 0, _, _>(
+    &mut pixels,
+    width,
+    255.0,
+    &blue_noise,
+);
 ```
 
 ### Float-to-Float Dithering

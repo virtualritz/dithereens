@@ -13,31 +13,31 @@ This is a Rust crate providing deterministic hash-based dithering algorithms for
 ### API Breaking Change (v0.3.0)
 
 The dithering method API was redesigned to pre-compute seed values for better performance:
-- Methods now store seed-based values in their structs
-- Seed is provided at construction time (`Method::new(seed)`) rather than at each `compute()` call
-- This eliminates redundant calculations when processing multiple values
+- Methods now store seed-based values in their structs.
+- Seed is provided at construction time (`Method::new(seed)`) rather than at each `compute()` call.
+- This eliminates redundant calculations when processing multiple values.
 
 ### Feature Flags
 
-- `default = ["rayon", "std"]` - Standard library and parallel processing
-- `std` - Enables std-only features  
-- `libm` - Uses libm for `round()` in no_std environments
-- `rayon` - Enables parallel processing
-- `nightly_f16` - Native f16 type support (requires nightly)
-- `blue_noise` - Real blue noise using 256x256x4 precomputed table (~5MB binary size)
+- `default = ["rayon", "std"]` - Standard library and parallel processing.
+- `std` - Enables std-only features.
+- `libm` - Uses libm for `round()` in no_std environments.
+- `rayon` - Enables parallel processing.
+- `nightly_f16` - Native f16 type support (requires nightly).
+- `blue-noise` - Real blue noise using 256x256x4 precomputed table (~5MB binary size).
 
 ### Dithering Methods
 
 **1D Methods:**
-- `Hash` - Default hash-based dithering
-- `R2` - Low-discrepancy sequence
-- `GoldenRatio` - Golden ratio sequence
+- `Hash` - Default hash-based dithering.
+- `R2` - Low-discrepancy sequence.
+- `GoldenRatio` - Golden ratio sequence.
 
 **2D Methods:**
-- `InterleavedGradientNoise` - IGN algorithm from Jorge Jimenez
-- `SpatialHash` - Spatial hash for blue noise-like properties
-- `BlueNoiseApprox` - Approximation using IGN + SpatialHash
-- `BlueNoise` (requires `blue_noise` feature) - Real blue noise from precomputed table
+- `InterleavedGradientNoise` - IGN algorithm from Jorge Jimenez.
+- `SpatialHash` - Spatial hash for blue noise-like properties.
+- `BlueNoiseApprox` - Approximation using IGN + SpatialHash.
+- `BlueNoise` (requires `blue-noise` feature) - Real blue noise from precomputed table.
 
 ## Code Style and Patterns
 
@@ -46,15 +46,20 @@ Test functions should NOT be prefixed with `test_`. The `#[test]` attribute alre
 
 ### CRITICAL: Run tests before committing
 Always run `cargo test --all-features` and ensure:
-- All tests pass
-- Code compiles without warnings
-- Use `cargo fmt` to format code
-- Run `cargo clippy --all-targets --all-features -- -W warnings` and fix issues
+- All tests pass.
+- Code compiles without warnings.
+- Use `cargo fmt` to format code.
+- Run `cargo clippy --all-targets --all-features -- -W warnings` and fix issues.
 
 ### Documentation
-- All public APIs must have doc comments
-- Include usage examples in doc comments where appropriate
-- Use `cargo doc --open` to review documentation
+- All public APIs must have doc comments.
+- Include usage examples in doc comments where appropriate.
+- Use `cargo doc --open` to review documentation.
+- **IMPORTANT**: README.md is auto-generated from `src/lib.rs` using `cargo-rdme`.
+  - NEVER edit README.md directly.
+  - Always update the doc comments in `src/lib.rs`.
+  - Run `cargo rdme --force` to regenerate README.md after updating lib.rs.
+  - The section between `<!-- cargo-rdme start -->` and `<!-- cargo-rdme end -->` is replaced.
 
 ## Build and Development Commands
 
@@ -65,7 +70,7 @@ cargo build
 # Run tests
 cargo test
 
-# Test with all features including blue_noise
+# Test with all features including blue-noise
 cargo test --all-features
 
 # Run specific test
@@ -86,29 +91,32 @@ cargo check
 # Generate and view documentation
 cargo doc --open
 
+# Regenerate README.md from src/lib.rs doc comments
+cargo rdme --force
+
 # Run examples
 cargo run --example dither_2d
 cargo run --example hash_dither
 cargo run --example parallel_dither
 cargo run --example iterator_adapters
 
-# Run with blue_noise feature
-cargo run --example dither_2d --features blue_noise
+# Run with blue-noise feature
+cargo run --example dither_2d --features blue-noise
 ```
 
 ## Performance Requirements
 
-- Use `#[inline(always)]` for hot path methods
-- Prefer in-place operations (`_slice` functions) for best performance
-- Iterator functions allocate - use slices when performance critical
-- Rayon automatically parallelizes for large datasets
+- Use `#[inline(always)]` for hot path methods.
+- Prefer in-place operations (`_slice` functions) for best performance.
+- Iterator functions allocate - use slices when performance critical.
+- Rayon automatically parallelizes for large datasets.
 
 ## API Design Patterns
 
-- Functional API with method chaining support via iterator traits
-- Deterministic - same input + seed always produces same output
-- Generic over float types (f32, f64, f16 with feature)
-- Separation of concerns: methods compute offsets, functions apply dithering
+- Functional API with method chaining support via iterator traits.
+- Deterministic - same input + seed always produces same output.
+- Generic over float types (f32, f64, f16 with feature).
+- Separation of concerns: methods compute offsets, functions apply dithering.
 
 ## Writing Instructions For User Interaction And Documentation
 
@@ -143,17 +151,17 @@ These instructions apply to any communication (e.g. feedback you print to the us
 
 ### Adding a New Dithering Method
 
-1. Define struct with seed-based precomputed values
-2. Implement constructor `new(seed: u32)`
-3. Implement appropriate trait (`LinearRng` or `SpatialRng`)
-4. Add tests comparing sequential vs parallel results
-5. Update documentation and examples
+1. Define struct with seed-based precomputed values.
+2. Implement constructor `new(seed: u32)`.
+3. Implement appropriate trait (`LinearRng` or `SpatialRng`).
+4. Add tests comparing sequential vs parallel results.
+5. Update documentation and examples.
 
 ### Debugging Test Failures
 
-- Check if method instances are created with seeds
-- Verify trait implementations match signatures
-- For parallel tests, ensure determinism with same seed
-- Use `cargo test -- --nocapture` to see print output
+- Check if method instances are created with seeds.
+- Verify trait implementations match signatures.
+- For parallel tests, ensure determinism with same seed.
+- Use `cargo test -- --nocapture` to see print output.
 
 Remember: We optimize for correctness and determinism over raw speed. Users depend on getting the same results with the same inputs.

@@ -23,30 +23,45 @@ fn main() {
     let mut ign_data = image_data.clone();
     let ign = InterleavedGradientNoise::new(42);
     // Using the new trait method syntax
-    ign.simple_dither_slice_2d(&mut ign_data, width, 255.0);
+    ign.simple_dither_slice_2d::<1, 0, _>(&mut ign_data, width, 255.0);
     print_image(&ign_data, width);
 
     // Spatial Hash
     println!("\n--- Spatial Hash ---");
     let mut spatial_data = image_data.clone();
     let spatial = SpatialHash::new(42);
-    simple_dither_slice_2d(&mut spatial_data, width, 255.0, &spatial);
+    simple_dither_slice_2d::<1, 0, _, _>(
+        &mut spatial_data,
+        width,
+        255.0,
+        &spatial,
+    );
     print_image(&spatial_data, width);
 
     // Blue Noise approximation
     println!("\n--- Blue Noise Approximation ---");
     let mut blue_data = image_data.clone();
     let blue_approx = BlueNoiseApprox::new(42);
-    simple_dither_slice_2d(&mut blue_data, width, 255.0, &blue_approx);
+    simple_dither_slice_2d::<1, 0, _, _>(
+        &mut blue_data,
+        width,
+        255.0,
+        &blue_approx,
+    );
     print_image(&blue_data, width);
 
     // Real Blue Noise Table
-    #[cfg(feature = "blue_noise")]
+    #[cfg(feature = "blue-noise")]
     {
         println!("\n--- Blue Noise Table (Real) ---");
         let mut blue_table_data = image_data.clone();
         let blue_noise = BlueNoise::new(42);
-        simple_dither_slice_2d(&mut blue_table_data, width, 255.0, &blue_noise);
+        simple_dither_slice_2d::<1, 0, _, _>(
+            &mut blue_table_data,
+            width,
+            255.0,
+            &blue_noise,
+        );
         print_image(&blue_table_data, width);
     }
 
@@ -72,7 +87,7 @@ fn main() {
     println!("Spatial:        {:.1}", spatial_pixel);
     println!("Blue Approx:    {:.1}", blue_approx_pixel);
 
-    #[cfg(feature = "blue_noise")]
+    #[cfg(feature = "blue-noise")]
     {
         let blue_noise = BlueNoise::new(seed);
         let blue_noise_pixel =
@@ -90,19 +105,29 @@ fn main() {
     println!("IGN Pattern:");
     let mut ign_pattern = pattern.clone();
     let ign = InterleavedGradientNoise::new(0);
-    simple_dither_slice_2d(&mut ign_pattern, pattern_size, 255.0, &ign);
+    simple_dither_slice_2d::<1, 0, _, _>(
+        &mut ign_pattern,
+        pattern_size,
+        255.0,
+        &ign,
+    );
     print_pattern(&ign_pattern, pattern_size);
 
     println!("\nSpatial Hash Pattern:");
     let mut spatial_pattern = pattern.clone();
     let spatial = SpatialHash::new(0);
-    simple_dither_slice_2d(&mut spatial_pattern, pattern_size, 255.0, &spatial);
+    simple_dither_slice_2d::<1, 0, _, _>(
+        &mut spatial_pattern,
+        pattern_size,
+        255.0,
+        &spatial,
+    );
     print_pattern(&spatial_pattern, pattern_size);
 
     println!("\nBlue Noise Approx Pattern:");
     let mut blue_pattern = pattern.clone();
     let blue_approx = BlueNoiseApprox::new(0);
-    simple_dither_slice_2d(
+    simple_dither_slice_2d::<1, 0, _, _>(
         &mut blue_pattern,
         pattern_size,
         255.0,
@@ -110,12 +135,12 @@ fn main() {
     );
     print_pattern(&blue_pattern, pattern_size);
 
-    #[cfg(feature = "blue_noise")]
+    #[cfg(feature = "blue-noise")]
     {
         println!("\nBlue Noise Table Pattern (Real):");
         let mut blue_table_pattern = pattern.clone();
         let blue_noise = BlueNoise::new(0);
-        simple_dither_slice_2d(
+        simple_dither_slice_2d::<1, 0, _, _>(
             &mut blue_table_pattern,
             pattern_size,
             255.0,
@@ -129,13 +154,18 @@ fn main() {
     for seed in [0, 42, 123] {
         let mut seed_test = pattern.clone();
         let ign = InterleavedGradientNoise::new(seed);
-        simple_dither_slice_2d(&mut seed_test, pattern_size, 255.0, &ign);
+        simple_dither_slice_2d::<1, 0, _, _>(
+            &mut seed_test,
+            pattern_size,
+            255.0,
+            &ign,
+        );
         println!("Seed {}:", seed);
         print_pattern(&seed_test, pattern_size);
         println!();
     }
 
-    #[cfg(feature = "blue_noise")]
+    #[cfg(feature = "blue-noise")]
     {
         println!(
             "\n--- Seed Variation (Blue Noise Table with different seeds) ---"
@@ -143,7 +173,7 @@ fn main() {
         for seed in [0, 42, 123] {
             let mut seed_test = pattern.clone();
             let blue_noise = BlueNoise::new(seed);
-            simple_dither_slice_2d(
+            simple_dither_slice_2d::<1, 0, _, _>(
                 &mut seed_test,
                 pattern_size,
                 255.0,

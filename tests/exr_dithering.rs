@@ -38,7 +38,7 @@ fn load_exr_image(
     let mut flat_pixels = vec![0.0f32; width * height * 4];
 
     // Extract channel data based on what's available
-    let encoding = &layer.encoding;
+    let _encoding = &layer.encoding;
 
     // Try to get RGBA channels or RGB with default alpha
     for y in 0..height {
@@ -316,7 +316,7 @@ fn test_exr_dithering_comparison() {
     }
 
     // Apply BlueNoise method
-    #[cfg(feature = "blue_noise")]
+    #[cfg(feature = "blue-noise")]
     {
         let mut pixels = original_pixels.clone();
 

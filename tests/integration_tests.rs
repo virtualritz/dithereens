@@ -185,7 +185,7 @@ fn test_2d_methods() {
     assert!(ign_result >= 126.5 && ign_result <= 128.5);
     assert!(spatial_result >= 126.5 && spatial_result <= 128.5);
 
-    #[cfg(feature = "blue_noise")]
+    #[cfg(feature = "blue-noise")]
     {
         let blue_method = BlueNoise::new(seed);
         let blue_result = dither_2d(value, 0.0, 255.0, 0.5, x, y, &blue_method);
@@ -200,7 +200,14 @@ fn test_2d_slice_functions() {
     let original = values.clone();
 
     let ign_method = InterleavedGradientNoise::new(42);
-    dither_slice_2d(&mut values, width, 0.0, 255.0, 0.5, &ign_method);
+    dither_slice_2d::<1, 0, _, _>(
+        &mut values,
+        width,
+        0.0,
+        255.0,
+        0.5,
+        &ign_method,
+    );
 
     // Should have changed
     assert_ne!(values, original);
@@ -217,7 +224,12 @@ fn test_simple_2d_functions() {
     let mut values = vec![0.5f32; width * 3]; // 4x3 image
 
     let spatial_method = SpatialHash::new(42);
-    simple_dither_slice_2d(&mut values, width, 255.0, &spatial_method);
+    simple_dither_slice_2d::<1, 0, _, _>(
+        &mut values,
+        width,
+        255.0,
+        &spatial_method,
+    );
 
     // All values should be in valid range
     for &v in &values {

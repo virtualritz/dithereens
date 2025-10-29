@@ -12,7 +12,7 @@ mod rayon_tests {
 
         // All results should be within reasonable range
         for &result in &results {
-            assert!(result >= -1.0 && result <= 256.0);
+            assert!((-1.0..=256.0).contains(&result));
         }
     }
 
@@ -26,7 +26,7 @@ mod rayon_tests {
 
         // All results should be within expected ranges
         for &result in &results {
-            assert!(result >= 0.0 && result <= 255.0);
+            assert!((0.0..=255.0).contains(&result));
         }
     }
 
@@ -44,7 +44,7 @@ mod rayon_tests {
 
         // All values should be properly dithered
         for &v in &values {
-            assert!(v >= 0.0 && v <= 255.0);
+            assert!((0.0..=255.0).contains(&v));
         }
     }
 
@@ -58,7 +58,7 @@ mod rayon_tests {
         // Values should have changed and be within range
         assert_eq!(values.len(), 3);
         for &result in &values {
-            assert!(result >= 0.0 && result <= 255.0);
+            assert!((0.0..=255.0).contains(&result));
         }
         // Values should be different from original due to dithering
         assert_ne!(values, original_values);
@@ -95,7 +95,7 @@ mod rayon_tests {
 
         // All results should be within expected ranges
         for &result in &results {
-            assert!(result >= 0.0 && result <= 255.0);
+            assert!((0.0..=255.0).contains(&result));
         }
     }
 
@@ -123,7 +123,7 @@ mod rayon_tests {
 
         // All values should be valid
         for &v in &par_results {
-            assert!(v >= 0.0 && v <= 255.0);
+            assert!((0.0..=255.0).contains(&v));
         }
     }
 }

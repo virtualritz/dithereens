@@ -306,7 +306,7 @@ mod f16_tests {
         assert_eq!(result, result2);
     }
 
-    #[cfg(feature = "blue_noise")]
+    #[cfg(feature = "blue-noise")]
     #[test]
     fn f32_to_f16_with_blue_noise() {
         let value: f32 = 3.14159;
