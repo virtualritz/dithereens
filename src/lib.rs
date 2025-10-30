@@ -332,6 +332,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(feature = "nightly_f16", feature(f16))]
+#![warn(missing_docs)]
 
 #[cfg(feature = "blue-noise")]
 mod blue_noise;
@@ -799,6 +800,7 @@ pub trait DitherFloat:
     + Number
     + CastableFrom<f64>
 {
+    /// Rounds the value to the nearest integer.
     fn round(self) -> Self;
 }
 
@@ -1240,6 +1242,7 @@ pub fn dither_slice<T>(
     dither_slice_with(values, min, one, dither_amplitude, &method)
 }
 
+/// Dither values in a slice using default hash method (parallel version).
 #[cfg(feature = "rayon")]
 pub fn dither_slice<T>(
     values: &mut [T],
@@ -1277,6 +1280,7 @@ pub fn dither_slice_with<T, M: LinearRng>(
     }
 }
 
+/// Dither values in a slice using specific method (parallel version).
 #[cfg(feature = "rayon")]
 pub fn dither_slice_with<T, M: LinearRng>(
     values: &mut [T],
@@ -1404,6 +1408,25 @@ pub fn dither_slice_2d<const CHANNELS: usize, const SEED_OFFSET: u32, T, M>(
     }
 }
 
+/// Apply 2D spatial dithering to values in a slice (parallel version).
+///
+/// Processes images as flat interleaved arrays using spatial coordinates for
+/// multi-channel images (e.g., RGB, RGBA) with efficient noise computation.
+///
+/// # Type Parameters
+/// - `CHANNELS`: Number of channels per pixel (1 for grayscale, 3 for RGB, 4
+///   for RGBA).
+/// - `SEED_OFFSET`: Per-channel seed offset (0 = correlated noise across
+///   channels, non-zero = different noise per channel).
+///
+/// # Parameters
+/// - `values`: Flat slice of interleaved pixel data (length = width * height *
+///   CHANNELS).
+/// - `width`: Image width in pixels.
+/// - `min`: Minimum output value.
+/// - `one`: Maximum output value.
+/// - `dither_amplitude`: Controls dithering strength.
+/// - `method`: Spatial dithering method implementing [`SpatialRng`].
 #[cfg(feature = "rayon")]
 pub fn dither_slice_2d<const CHANNELS: usize, const SEED_OFFSET: u32, T, M>(
     values: &mut [T],
@@ -1481,6 +1504,7 @@ where
     simple_dither_slice_with(values, one, &method)
 }
 
+/// Simple dither for slices using default hash method (parallel version).
 #[cfg(feature = "rayon")]
 pub fn simple_dither_slice<T>(values: &mut [T], one: T, seed: u32)
 where
@@ -1504,6 +1528,7 @@ pub fn simple_dither_slice_with<T, M: LinearRng>(
     }
 }
 
+/// Simple dither for slices using specific method (parallel version).
 #[cfg(feature = "rayon")]
 pub fn simple_dither_slice_with<T, M: LinearRng>(
     values: &mut [T],
@@ -1618,6 +1643,24 @@ pub fn simple_dither_slice_2d<
     }
 }
 
+/// Simple dither for 2D slices with multi-channel support (parallel version).
+///
+/// Processes multi-channel image data (e.g., RGB, RGBA) efficiently by
+/// computing noise once per pixel coordinate and optionally sharing it across
+/// channels.
+///
+/// # Type Parameters
+/// - `CHANNELS`: Number of channels per pixel (1 for grayscale, 3 for RGB, 4
+///   for RGBA).
+/// - `SEED_OFFSET`: Per-channel seed offset (0 = correlated noise across
+///   channels, non-zero = different noise per channel).
+///
+/// # Parameters
+/// - `values`: Flat slice of interleaved pixel data (length = width * height *
+///   CHANNELS).
+/// - `width`: Image width in pixels.
+/// - `one`: Maximum output value (typically 255.0).
+/// - `method`: Spatial dithering method implementing [`SpatialRng`].
 #[cfg(feature = "rayon")]
 pub fn simple_dither_slice_2d<
     const CHANNELS: usize,
@@ -1703,6 +1746,7 @@ where
     dither_iter_with(values, min, one, dither_amplitude, &method)
 }
 
+/// Dither values from an iterator using default hash method (parallel version).
 #[cfg(feature = "rayon")]
 pub fn dither_iter<T, I>(
     values: I,
@@ -1742,6 +1786,7 @@ where
         .collect()
 }
 
+/// Dither values from an iterator using specific method (parallel version).
 #[cfg(feature = "rayon")]
 pub fn dither_iter_with<T, I, M: LinearRng>(
     values: I,
@@ -1778,6 +1823,7 @@ where
     simple_dither_iter_with(values, one, &method)
 }
 
+/// Simple dither for iterators using default hash method (parallel version).
 #[cfg(feature = "rayon")]
 pub fn simple_dither_iter<T, I>(values: I, one: T, seed: u32) -> Vec<T>
 where
@@ -1809,6 +1855,7 @@ where
         .collect()
 }
 
+/// Simple dither for iterators using specific method (parallel version).
 #[cfg(feature = "rayon")]
 pub fn simple_dither_iter_with<T, I, M: LinearRng>(
     values: I,
@@ -1855,6 +1902,8 @@ where
     dither_float_slice_with(values, &method)
 }
 
+/// Dither float values in a slice when converting to lower precision using
+/// default hash method (parallel version).
 #[cfg(feature = "rayon")]
 pub fn dither_float_slice<Src, Dest>(values: &[Src], seed: u32) -> Vec<Dest>
 where
@@ -1887,6 +1936,8 @@ where
         .collect()
 }
 
+/// Dither float values in a slice when converting to lower precision using a
+/// specific linear RNG method (parallel version).
 #[cfg(feature = "rayon")]
 pub fn dither_float_slice_with<Src, Dest, M: LinearRng>(
     values: &[Src],
@@ -1946,6 +1997,8 @@ where
         .collect()
 }
 
+/// Dither 2D float values in a slice when converting to lower precision using
+/// a spatial method (parallel version).
 #[cfg(feature = "rayon")]
 pub fn dither_float_slice_2d<Src, Dest, M: SpatialRng>(
     values: &[Src],
@@ -1986,6 +2039,8 @@ where
     dither_float_iter_with(values, &method)
 }
 
+/// Dither float values from an iterator when converting to lower precision
+/// using default hash method (parallel version).
 #[cfg(feature = "rayon")]
 pub fn dither_float_iter<Src, Dest, I>(values: I, seed: u32) -> Vec<Dest>
 where
@@ -2020,6 +2075,8 @@ where
         .collect()
 }
 
+/// Dither float values from an iterator when converting to lower precision
+/// using a specific linear RNG method (parallel version).
 #[cfg(feature = "rayon")]
 pub fn dither_float_iter_with<Src, Dest, I, M: LinearRng>(
     values: I,
@@ -2077,6 +2134,7 @@ where
             .collect()
     }
 
+    /// Apply dithering to all values in the iterator (parallel version).
     #[cfg(feature = "rayon")]
     fn dither(self, min: T, one: T, dither_amplitude: T, seed: u32) -> Vec<T>
     where
@@ -2110,6 +2168,7 @@ where
             .collect()
     }
 
+    /// Apply dithering with a specific method (parallel version).
     #[cfg(feature = "rayon")]
     fn dither_with<M: LinearRng>(
         self,
@@ -2137,6 +2196,7 @@ where
             .collect()
     }
 
+    /// Apply simple dithering to all values in the iterator (parallel version).
     #[cfg(feature = "rayon")]
     fn simple_dither(self, one: T, seed: u32) -> Vec<T>
     where
@@ -2160,6 +2220,7 @@ where
             .collect()
     }
 
+    /// Apply simple dithering with a specific method (parallel version).
     #[cfg(feature = "rayon")]
     fn simple_dither_with<M: LinearRng>(self, one: T, method: &M) -> Vec<T>
     where

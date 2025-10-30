@@ -28,6 +28,12 @@ pub struct InterleavedGradientNoise {
 }
 
 impl InterleavedGradientNoise {
+    /// Creates a new Interleaved Gradient Noise (IGN) dithering method with the
+    /// given seed.
+    ///
+    /// Uses the fast IGN algorithm from Jorge Jimenez's SIGGRAPH 2014
+    /// presentation. The seed determines the coordinate offsets for spatial
+    /// variation.
     pub fn new(seed: u32) -> Self {
         Self {
             x_offset: seed.wrapping_mul(5),
@@ -66,6 +72,10 @@ pub struct SpatialHash {
 }
 
 impl SpatialHash {
+    /// Creates a new Spatial Hash dithering method with the given seed.
+    ///
+    /// Uses coordinate hashing to create spatially decorrelated noise with
+    /// blue noise-like characteristics without lookup tables.
     pub fn new(seed: u32) -> Self {
         Self { seed }
     }
@@ -103,6 +113,11 @@ pub struct BlueNoiseApprox {
 }
 
 impl BlueNoiseApprox {
+    /// Creates a new Blue Noise Approximation dithering method with the given
+    /// seed.
+    ///
+    /// Combines IGN and SpatialHash to approximate blue noise characteristics
+    /// without the memory cost of precomputed tables.
     pub fn new(seed: u32) -> Self {
         Self {
             ign: InterleavedGradientNoise::new(seed),
@@ -140,6 +155,11 @@ pub struct BlueNoise {
 
 #[cfg(feature = "blue-noise")]
 impl BlueNoise {
+    /// Creates a new true Blue Noise dithering method with the given seed.
+    ///
+    /// Uses precomputed 256×256×4 blue noise tables for highest quality
+    /// dithering. The seed determines which channel and coordinate offsets
+    /// to use.
     pub fn new(seed: u32) -> Self {
         Self {
             x_offset: seed.wrapping_mul(13),
@@ -190,9 +210,13 @@ impl SpatialRng for BlueNoise {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[enum_dispatch(SpatialRng)]
 pub enum SpatialDither {
+    /// Interleaved Gradient Noise method.
     InterleavedGradientNoise(InterleavedGradientNoise),
+    /// Spatial hash method.
     SpatialHash(SpatialHash),
+    /// Blue noise approximation method.
     BlueNoiseApprox(BlueNoiseApprox),
+    /// True blue noise from precomputed tables (requires `blue-noise` feature).
     #[cfg(feature = "blue-noise")]
     BlueNoise(BlueNoise),
 }

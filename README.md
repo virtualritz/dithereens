@@ -88,7 +88,7 @@ let dithered_golden = simple_dither_with(value, 255.0, 0, &golden_method);
 
 ### Dynamic Method Selection
 
-The [`LinearDither`] and [`SpatialDither`] enums provide zero-cost dynamic
+The `LinearDither` and `SpatialDither` enums provide zero-cost dynamic
 dispatch for runtime method selection:
 
 ```rust

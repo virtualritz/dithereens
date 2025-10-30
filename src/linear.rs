@@ -26,6 +26,10 @@ pub struct Hash {
 }
 
 impl Hash {
+    /// Creates a new Hash-based dithering method with the given seed.
+    ///
+    /// The seed determines the noise pattern that will be generated.
+    /// The same seed will always produce the same dithering pattern.
     pub fn new(seed: u32) -> Self {
         Self { seed }
     }
@@ -70,6 +74,12 @@ impl core::hash::Hash for R2 {
 }
 
 impl R2 {
+    /// Creates a new R2 low-discrepancy sequence dithering method with the
+    /// given seed.
+    ///
+    /// Uses the generalized golden ratio (R2 sequence) for better spatial
+    /// distribution than random noise. The seed determines the starting
+    /// point in the sequence.
     pub fn new(seed: u32) -> Self {
         Self {
             seed: seed as f32 * 0.618_034,
@@ -112,6 +122,12 @@ impl core::hash::Hash for GoldenRatio {
 }
 
 impl GoldenRatio {
+    /// Creates a new Golden Ratio sequence dithering method with the given
+    /// seed.
+    ///
+    /// Uses the golden ratio (φ = 1.618...) for optimal 1D low-discrepancy
+    /// sampling. Provides the most uniform distribution for gradient-like
+    /// data and smooth transitions.
     pub fn new(seed: u32) -> Self {
         Self {
             seed: seed as f32 * 0.381_966_02,
@@ -151,7 +167,10 @@ impl LinearRng for GoldenRatio {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[enum_dispatch(LinearRng)]
 pub enum LinearDither {
+    /// Hash-based dithering method.
     Hash(Hash),
+    /// R2 low-discrepancy sequence method.
     R2(R2),
+    /// Golden ratio sequence method.
     GoldenRatio(GoldenRatio),
 }
